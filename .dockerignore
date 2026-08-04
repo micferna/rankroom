@@ -1,0 +1,38 @@
+# What must never enter the build context.
+#
+# `COPY . .` copies whatever is here into an image layer, and a layer is
+# permanent — deleting a file in a later step does not remove it from the
+# image, it only hides it. So secrets are excluded at the gate rather than
+# cleaned up afterwards.
+
+# Secrets, first and most important.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# History, which carries every secret ever committed and every one reverted.
+.git
+.gitignore
+.github
+
+# Rebuilt inside the image; copying them in wastes a layer and can poison the
+# build with a host-architecture binary.
+node_modules/
+dist/
+server/target/
+
+# Nothing the build needs.
+*.md
+!README.md
+.vscode/
+.idea/
+coverage/
+test-results/
+playwright-report/
+e2e/
+playwright.config.ts
+*.log
+.DS_Store

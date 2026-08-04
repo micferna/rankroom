@@ -123,7 +123,7 @@ Concretely:
 > is present, because behind a proxy every request otherwise shares one bucket
 > and a single abusive client throttles everyone. Your proxy **must overwrite**
 > that header, never append to it. In nginx that means
-> `proxy_set_header X-Forwarded-For $remote_addr;` — *not*
+> `proxy_set_header X-Forwarded-For $remote_addr;` — _not_
 > `$proxy_add_x_forwarded_for`, which keeps whatever the caller sent. Caddy and
 > Traefik overwrite by default.
 
@@ -131,11 +131,11 @@ Concretely:
 
 The suite is in three parts, and all of it runs on every push:
 
-| Suite | What it does |
-| --- | --- |
-| `tests/authorisation.rs` | 15 tests against a real Postgres, at the data layer |
-| `tests/pentest.rs` | 24 attacks over real HTTP against the **whole** stack |
-| `tests/fuzz_validation.rs` | 250 000 generated documents through the validator |
+| Suite                      | What it does                                          |
+| -------------------------- | ----------------------------------------------------- |
+| `tests/authorisation.rs`   | 15 tests against a real Postgres, at the data layer   |
+| `tests/pentest.rs`         | 24 attacks over real HTTP against the **whole** stack |
+| `tests/fuzz_validation.rs` | 250 000 generated documents through the validator     |
 
 `pentest.rs` boots the server exactly as it is deployed — CORS, rate limiter,
 body limit, headers and all — and then attacks it: anonymous access to every

@@ -10,10 +10,9 @@
 Rank by 1v1 duels, let your Twitch chat vote, drive an OBS overlay, and export the whole
 session as a video — in the browser, in English or French, with no account and no upload.
 
-[**Open RankRoom →**](https://micferna.github.io/rankroom/)
-
 [![CI](https://github.com/micferna/rankroom/actions/workflows/ci.yml/badge.svg)](https://github.com/micferna/rankroom/actions/workflows/ci.yml)
-[![Deploy](https://github.com/micferna/rankroom/actions/workflows/deploy.yml/badge.svg)](https://github.com/micferna/rankroom/actions/workflows/deploy.yml)
+[![Server](https://github.com/micferna/rankroom/actions/workflows/server.yml/badge.svg)](https://github.com/micferna/rankroom/actions/workflows/server.yml)
+[![Supply chain](https://github.com/micferna/rankroom/actions/workflows/supply-chain.yml/badge.svg)](https://github.com/micferna/rankroom/actions/workflows/supply-chain.yml)
 [![CodeQL](https://github.com/micferna/rankroom/actions/workflows/codeql.yml/badge.svg)](https://github.com/micferna/rankroom/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -137,8 +136,8 @@ takes**: the items you are furthest apart on. That list is the video.
 - **Export** a PNG at three sizes, a ready-made **1280×720 thumbnail** built from your top
   tier, the raw `.json`, or a `.rankroom` archive that keeps images as real files.
 - **Share links carry the whole board in the URL fragment.** Fragments are never sent to a
-  server, so nobody — including GitHub Pages — sees what you ranked. The link keeps working
-  even if this site disappears.
+  server, so not even the host it is served from sees what you ranked. The link keeps
+  working even if that host disappears.
 - **Works offline.** A service worker precaches the app, the fonts and the icons.
 - **26 built-in templates** across seven categories, searchable by name _or_ by an item
   inside them — typing "bloodborne" finds the soulslike board.
@@ -218,13 +217,25 @@ Node 20.19+ is required. There is no backend, no database, and no environment fi
 
 ## Deploy your own
 
-The app is a static bundle, so anything that serves files will host it.
+```bash
+cp .env.example .env      # set PUBLIC_URL and DB_PASSWORD
+docker compose up -d --build
+```
 
-- **GitHub Pages** — push to `main` and [`deploy.yml`](.github/workflows/deploy.yml) does it.
-  Set _Settings → Pages → Source_ to **GitHub Actions** once.
-- **Anywhere else** — `BASE_PATH=/ npm run build` and upload `dist/`.
+Two containers: the app and Postgres. The app serves the front end **and** the API from one
+origin, which is a security decision before it is a packaging one — same-origin means the
+session cookie keeps `SameSite=Lax`, there is no CORS to misconfigure, and cross-site
+request forgery is not in the threat model. The image is distroless, runs as a non-root
+user, and carries no known vulnerabilities.
 
-`BASE_PATH` must match the subdirectory the app is served from, with a trailing slash.
+Only the app is published, and only on loopback: point your reverse proxy at
+`127.0.0.1:8080` and let it terminate TLS. It **must overwrite** `X-Forwarded-For` rather
+than append to it — the rate limiter keys on that header. [`server/README.md`](server/README.md)
+has the details.
+
+**Or host nothing at all.** The app is still a static bundle: `npm run build` and upload
+`dist/` anywhere. You lose accounts, public profiles and the live overlay; everything else —
+duels, chat voting, exports, share links — runs entirely in the browser and always has.
 
 ---
 

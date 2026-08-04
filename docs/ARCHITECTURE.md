@@ -203,7 +203,7 @@ versions, so they are treated as untrusted input like anything else.
 A share link is `#/b/<token>`, where the token is the whole board: JSON → `deflate-raw` →
 base64url. Two properties fall out of putting it in the _fragment_:
 
-1. **It is never sent to a server.** Browsers do not transmit fragments, so GitHub Pages
+1. **It is never sent to a server.** Browsers do not transmit fragments, so the host
    never sees what anyone ranked.
 2. **It cannot rot.** The link contains the board, so it keeps working even if this site
    goes away.

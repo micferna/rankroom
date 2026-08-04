@@ -4,8 +4,9 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 import { serviceWorkerPlugin } from './build/service-worker-plugin.ts'
 
-// GitHub Pages serves the app from /<repo>/. CI passes the repo name through
-// BASE_PATH so the same config also works for a custom domain (BASE_PATH=/).
+// The app is served from the root of its own host. `BASE_PATH` is here for the
+// one case that is not: serving it from a subdirectory, which needs the prefix
+// baked into every asset URL at build time.
 const base = process.env.BASE_PATH ?? '/'
 
 export default defineConfig({

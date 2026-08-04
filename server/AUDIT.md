@@ -19,17 +19,17 @@ Nine issues were found. Four were exploitable defects, all of them now fixed and
 each pinned by the test that caught it. Five were hardening gaps closed in the
 same pass.
 
-| # | Finding | Severity | Status |
-| --- | --- | --- | --- |
-| 1 | Login CSRF: OAuth handshake not bound to a browser | **High** | Fixed |
-| 2 | Board quota bypassed by concurrent requests (TOCTOU) | **Medium** | Fixed |
-| 3 | Session cookie shadowable from a sibling subdomain | **Medium** | Fixed |
-| 4 | No storage quota: an account could fill the disk | **Medium** | Fixed |
-| 5 | Rate limiter keyed on the proxy, throttling everyone | **Medium** | Fixed |
-| 6 | Authenticated responses were cacheable | **Low** | Fixed |
-| 7 | NUL byte in a URL returned 500 instead of 404 | **Low** | Fixed |
-| 8 | Request body limit three times larger than any real board | **Low** | Fixed |
-| 9 | Overlay key travels in a query string | **Informational** | Accepted, documented |
+| #   | Finding                                                   | Severity          | Status               |
+| --- | --------------------------------------------------------- | ----------------- | -------------------- |
+| 1   | Login CSRF: OAuth handshake not bound to a browser        | **High**          | Fixed                |
+| 2   | Board quota bypassed by concurrent requests (TOCTOU)      | **Medium**        | Fixed                |
+| 3   | Session cookie shadowable from a sibling subdomain        | **Medium**        | Fixed                |
+| 4   | No storage quota: an account could fill the disk          | **Medium**        | Fixed                |
+| 5   | Rate limiter keyed on the proxy, throttling everyone      | **Medium**        | Fixed                |
+| 6   | Authenticated responses were cacheable                    | **Low**           | Fixed                |
+| 7   | NUL byte in a URL returned 500 instead of 404             | **Low**           | Fixed                |
+| 8   | Request body limit three times larger than any real board | **Low**           | Fixed                |
+| 9   | Overlay key travels in a query string                     | **Informational** | Accepted, documented |
 
 The controls that held on the first run are listed under
 [What did not break](#what-did-not-break); they matter as much as the failures.
@@ -45,7 +45,7 @@ attack, without any interaction beyond following a link.
 
 The sign-in flow stored a random `state` server-side and accepted any callback
 that presented it. `state` is the standard CSRF defence for OAuth, but it only
-proves *this server started some handshake* — not *this browser started it*.
+proves _this server started some handshake_ — not _this browser started it_.
 
 The attack:
 
@@ -78,7 +78,7 @@ returning pkce_verifier
 
 Matching in the same `where` matters twice over. The obvious half is that a
 caller without the cookie cannot complete the sign-in. The subtler half is that
-they cannot *invalidate* it either — a check that deleted the row first and
+they cannot _invalidate_ it either — a check that deleted the row first and
 compared afterwards would hand an attacker a denial-of-service against anyone
 trying to sign in. The check runs before the code is exchanged, so a forged
 callback costs one indexed delete and reaches Twitch never.
@@ -195,7 +195,7 @@ themselves.
 to the socket. That header is attacker-controlled, so the fix is only real if
 the proxy overwrites it — the README and `.env.example` now say so with the
 exact nginx directive, because `$proxy_add_x_forwarded_for` (the value most
-snippets on the internet use) *appends* and would let a caller mint a fresh
+snippets on the internet use) _appends_ and would let a caller mint a fresh
 bucket per request by sending their own header.
 
 Pinned by `one_clients_flood_does_not_lock_everyone_else_out`.
@@ -231,7 +231,7 @@ probes to map the stack.
 
 **Fix.** Public identifiers are shape-checked before any query. A login must
 match what the database constrains it to, a slug likewise. Anything else is
-*not found* without a round trip, which also removes a free database query from
+_not found_ without a round trip, which also removes a free database query from
 an unauthenticated endpoint.
 
 Found by `injection_payloads_in_paths_do_no_harm`, which sends ten hostile
@@ -340,7 +340,13 @@ edges of the grammar; a first version produced a corpus the validator rejected
 nothing. The acceptance rate is now asserted, so the corpus cannot silently
 degrade into that state again.
 
-**Supply chain.** `cargo deny` reports clean across advisories, licences, bans
+**Supply chain.** Actions and base images are pinned to immutable digests, with
+CI asserting it. Images are scanned with Trivy on every push and weekly on a
+schedule; the workflows themselves are audited with `zizmor`, the Dockerfile
+with `hadolint`, and the repository history with Trivy's secret scanner. A
+CycloneDX bill of materials is generated for both ecosystems and kept for
+ninety days, so the next advisory is answerable in minutes rather than an
+afternoon. `cargo deny` reports clean across advisories, licences, bans
 and sources. `cargo audit` reports RUSTSEC-2023-0071 in `rsa`, reachable only
 through `sqlx`'s MySQL driver, which is not enabled — `cargo deny`, which
 resolves the real feature graph, does not see the crate at all. The ignore is
@@ -348,6 +354,107 @@ documented and **CI asserts the premise**, so if `rsa` ever becomes a genuine
 dependency the build fails rather than the justification quietly going stale.
 Three unused dependencies (`subtle`, `tower`, `http-body-util`) were removed;
 unused crates are attack surface with no upside.
+
+## Second pass — deployment and supply chain
+
+A later review looked at what surrounds the code rather than the code itself:
+how it is built, what it is built from, and what it is served by. Six more
+issues, all fixed.
+
+| #   | Finding                                               | Severity   | Status |
+| --- | ----------------------------------------------------- | ---------- | ------ |
+| 10  | No `.dockerignore`: `.env` would ship inside an image | **High**   | Fixed  |
+| 11  | Every CI action pinned to a mutable tag               | **High**   | Fixed  |
+| 12  | Base images pinned to mutable tags                    | **Medium** | Fixed  |
+| 13  | Static-file server carried ten known vulnerabilities  | **Medium** | Fixed  |
+| 14  | npm install scripts ran during the image build        | **Medium** | Fixed  |
+| 15  | An unknown `/api/*` path answered with the app        | **Low**    | Fixed  |
+
+### 10. No `.dockerignore`
+
+The Dockerfile used `COPY . .` and no `.dockerignore` existed. A `.env` sitting
+in the working directory — which is exactly where the deployment instructions
+put it, holding the Postgres password and the Twitch client secret — would have
+been copied into an image layer.
+
+Layers are permanent. Deleting the file in a later step does not remove it; it
+hides it, and anyone who pulls the image can read it back out.
+
+**Fix.** A `.dockerignore` that excludes secrets, `.git` (which carries every
+credential ever committed, including ones since reverted), and build output. The
+build context dropped to 2.4 MB, and the Dockerfile now names what it copies
+instead of taking everything.
+
+### 11. CI actions pinned to mutable tags
+
+All thirteen actions were referenced by tag — `actions/checkout@v7` — and one,
+`dtolnay/rust-toolchain@stable`, by _branch_.
+
+A tag is a pointer its owner can move. This is not theoretical: in March 2025
+the `tj-actions/changed-files` tags were retargeted at a malicious commit, and
+every workflow that trusted them leaked its secrets into build logs. A branch is
+worse still — no retargeting required.
+
+**Fix.** Every action pinned to a 40-character commit SHA with the version in a
+trailing comment, so Dependabot can still see and bump it. A CI job asserts the
+property holds, because a pin nothing enforces is a pin that will not survive
+its first hurried pull request.
+
+### 12. Base images pinned to mutable tags
+
+`FROM node:24-alpine` is not a fixed input either. Now pinned by digest, with the
+same CI assertion.
+
+### 13. The static-file server was the largest source of vulnerabilities
+
+The first version of this stack served the front end with Caddy. Scanned, that
+image carried **ten known vulnerabilities**: five in Alpine packages (`curl`,
+`c-ares` — neither of which a static file server needs) and five in the Go
+binary itself, including a `net/http` MIME parsing denial of service and a
+symlink-following bug in `os.Root` that a file server plausibly reaches.
+
+The API image, distroless, had **zero**.
+
+**Fix.** Deleted the container. The Rust binary serves the built front end
+itself, and the whole application is one distroless image: 49 MB, non-root,
+read-only root filesystem, and no known vulnerabilities.
+
+That also made "same origin" structural rather than configured. The app and the
+API answer on one host because they are one process — not because a proxy was
+set up correctly — which is what keeps the session cookie `SameSite=Lax` and
+keeps cross-site request forgery out of the threat model. The alternative, a
+front end on one host and an API on another, forces `SameSite=None` and puts
+that surface back.
+
+### 14. npm install scripts ran during the build
+
+`npm ci` runs each dependency's install scripts, which is arbitrary code
+execution on the build machine and the mechanism behind most published npm
+compromises.
+
+**Fix.** `npm ci --ignore-scripts`, after verifying the build works without
+them. Nothing this project depends on needs one.
+
+### 15. An unknown `/api/*` path answered with the app
+
+Once the server served static files, its fallback caught unmatched API paths:
+`GET /api/nope` returned the HTML page with a `200`. A client parses that as
+success until it does not.
+
+**Fix.** Explicit routes for `/api`, `/api/`, and `/api/{*rest}` returning a
+JSON 404. Three, because a wildcard needs at least one segment — `/api/` alone
+was falling through, which the test caught after the first two were added.
+
+### What held
+
+Path traversal against the new file server was tested with eight encodings —
+`..`, percent-encoded, doubled, mixed with valid prefixes — and none escaped the
+served directory. Every attempt returned the app, which is correct: the app
+routes on the URL fragment, so any unknown path is the app itself. The test
+asserts on the _body_, not the status, because a `200` here proves nothing on
+its own.
+
+---
 
 ## Limits of this assessment
 

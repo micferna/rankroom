@@ -11,7 +11,14 @@ publish = false
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
-tower-http = { version = "0.6", features = ["cors", "limit", "trace", "timeout", "set-header"] }
+tower-http = { version = "0.6", features = [
+  "cors",
+  "fs",
+  "limit",
+  "trace",
+  "timeout",
+  "set-header",
+] }
 tower_governor = "0.7"
 futures-util = { version = "0.3", default-features = false }
 async-stream = "0.3"

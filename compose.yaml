@@ -1,0 +1,72 @@
+# The whole application, as one stack.
+#
+#   cp .env.example .env   # then fill it in
+#   docker compose up -d --build
+#
+# Two containers: the app — which serves the front end and the API from one
+# origin — and Postgres. Only the app is published, and only on loopback: your
+# existing reverse proxy terminates TLS and forwards to it. The database is not
+# reachable from outside the Docker network, even by accident.
+
+name: rankroom
+
+services:
+  app:
+    build: .
+    image: rankroom:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://rankroom:${DB_PASSWORD:?set DB_PASSWORD in .env}@db:5432/rankroom
+      BIND: 0.0.0.0:8080
+      # One value for both, because the app and the API share an origin.
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+      APP_URL: ${PUBLIC_URL}
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
+      TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET:-}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      RATE_LIMIT_PER_SECOND: ${RATE_LIMIT_PER_SECOND:-10}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-40}
+      STORAGE_QUOTA_MB: ${STORAGE_QUOTA_MB:-512}
+      RUST_LOG: ${RUST_LOG:-rankroom_server=info,tower_http=warn}
+    ports:
+      # Loopback only. Point your reverse proxy here. It terminates TLS, and it
+      # must *overwrite* X-Forwarded-For rather than append to it — the rate
+      # limiter keys on that header, and an appended value is one a caller can
+      # forge to get themselves a fresh bucket per request.
+      - '127.0.0.1:8080:8080'
+    # The image declares its own healthcheck: the binary probes itself, because
+    # there is no shell in it to run anything else with.
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
+
+  db:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rankroom
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: rankroom
+      # Initialises the cluster with a real password hash rather than trust.
+      POSTGRES_INITDB_ARGS: '--auth-host=scram-sha-256'
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U rankroom -d rankroom']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt: [no-new-privileges:true]
+    logging: *logging
+
+volumes:
+  db:

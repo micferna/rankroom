@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{sse::Event, IntoResponse, Redirect, Response, Sse},
-    routing::{delete, get, post},
+    routing::{any, delete, get, post},
     Json, Router,
 };
 use futures_util::Stream;
@@ -35,7 +35,21 @@ pub fn router(state: AppState) -> Router {
         .route("/api/overlay/live", get(overlay_stream))
         .route("/api/u/{login}", get(public_profile))
         .route("/api/b/{slug}", get(public_board))
+        // Anything else under /api is a mistake, and it deserves a JSON 404
+        // rather than the single-page app. Without this the static fallback
+        // answers a mistyped endpoint with HTML and a 200, which a client
+        // parses as success right up until it does not.
+        //
+        // All three forms, because a wildcard needs at least one segment to
+        // match: `/api/` alone would otherwise fall through to the app.
+        .route("/api", any(unknown_endpoint))
+        .route("/api/", any(unknown_endpoint))
+        .route("/api/{*rest}", any(unknown_endpoint))
         .with_state(state)
+}
+
+async fn unknown_endpoint() -> ApiError {
+    ApiError::NotFound
 }
 
 async fn health(State(state): State<AppState>) -> ApiResult<Json<Value>> {

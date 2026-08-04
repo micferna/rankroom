@@ -1,0 +1,216 @@
+name: Supply chain
+
+# What gets *into* a build, rather than what the build does.
+#
+# The threat here is not a bug in this repository's code — the other workflows
+# cover that. It is a dependency, a base image, or a CI action becoming
+# something other than what it was when it was chosen, without anyone changing
+# a line. Every job below exists to make that visible.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Advisories and image rebuilds land without a commit, so this runs on a clock
+  # as well. A repository nobody touches for a month is not a repository whose
+  # dependencies were safe for a month.
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supply-chain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pinning:
+    name: Everything is pinned
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # A tag is a pointer someone else can move. `actions/checkout@v7` runs
+      # whatever that tag names at the moment the job starts, which is how the
+      # tj-actions/changed-files compromise reached thousands of repositories in
+      # March 2025 — the tags were retargeted at a malicious commit and every
+      # workflow that trusted them leaked its secrets.
+      #
+      # So actions are pinned to commit SHAs, and this asserts they stay that
+      # way. The pin is only worth anything if nothing can quietly un-pin it.
+      - name: Actions are pinned to commit SHAs
+        run: |
+          if unpinned=$(grep -rnE '^[[:space:]]*(- )?uses:' .github/workflows/ \
+              | grep -vE '@[0-9a-f]{40} # '); then
+            echo "::error::These actions are not pinned to a commit SHA:"
+            echo "$unpinned"
+            exit 1
+          fi
+          echo "Every action is pinned to a 40-character commit SHA."
+
+      # Same argument, one layer down: `FROM node:24-alpine` is not a fixed
+      # input. Digests make a build reproducible and make a swapped base image
+      # a visible diff rather than a silent one.
+      - name: Base images are pinned by digest
+        run: |
+          if unpinned=$(grep -rnE '^[[:space:]]*(FROM|image:)[[:space:]]' \
+              Dockerfile compose.yaml \
+              | grep -vE 'sha256:[0-9a-f]{64}' \
+              | grep -vE 'rankroom-(web|server):latest'); then
+            echo "::error::These images are not pinned by digest:"
+            echo "$unpinned"
+            exit 1
+          fi
+          echo "Every base image is pinned by digest."
+
+  workflows:
+    name: Workflow security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      # zizmor audits the workflows themselves: template injection through
+      # untrusted `github.*` values, over-broad permissions, dangerous triggers.
+      # A workflow is code with access to secrets, and it is rarely reviewed
+      # like code.
+      - name: Audit the workflows
+        run: |
+          pip install "zizmor==1.29.0"
+          zizmor --persona=regular --format plain .github/workflows/
+
+  containers:
+    name: Container images
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Dockerfile linting: pinned versions, no `latest`, no root, no secrets in
+      # ARG, layers that do what they look like they do.
+      - name: Lint the Dockerfiles
+        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6 # v3.4.0
+        with:
+          recursive: true
+          failure-threshold: warning
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build the image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: rankroom:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # What actually ships, scanned as it ships. A clean `npm audit` says
+      # nothing about the OS packages in the base image underneath it.
+      - name: Scan the image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: rankroom:scan
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+
+      - name: The image runs as a non-root user
+        run: |
+          user=$(docker image inspect rankroom:scan --format '{{.Config.User}}')
+          if [ -z "$user" ] || [ "$user" = "root" ] || [ "$user" = "0" ]; then
+            echo "::error::the image runs as root."
+            exit 1
+          fi
+          echo "the image runs as $user"
+
+  filesystem:
+    name: Secrets and configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Secret scanning is worth little on one commit: a credential that was
+          # committed and then removed is still in the history, and still valid.
+          fetch-depth: 0
+
+      - name: Scan for committed secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scanners: secret
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '1'
+          format: table
+
+      - name: Scan the deployment configuration
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          format: table
+
+  inventory:
+    name: Dependency inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # `--ignore-scripts` is the point, not an optimisation. An npm package's
+      # install scripts run arbitrary code on whatever machine installs it, and
+      # that is the mechanism behind most published npm compromises. The build
+      # is verified to work without them, so nothing here needs to grant it.
+      - run: npm ci --ignore-scripts
+
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: server
+
+      - name: Install SBOM tooling
+        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2
+        with:
+          tool: cargo-cyclonedx
+
+      # A bill of materials is what makes the next advisory answerable in
+      # minutes instead of an afternoon: when something is announced, the
+      # question is "is it in here", and this is the artefact that answers it.
+      - name: Build the software bill of materials
+        run: |
+          mkdir -p sbom
+          npx --yes @cyclonedx/cyclonedx-npm@latest \
+            --omit dev --output-file sbom/web.cdx.json
+          cd server && cargo cyclonedx --format json --all
+          find . -name '*.cdx.json' -maxdepth 2 -exec cp {} ../sbom/server.cdx.json \;
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sbom
+          path: sbom/
+          retention-days: 90
