@@ -364,6 +364,32 @@ export const fr: Record<keyof typeof en, string> = {
     'Tapez une lettre de tier — {letters} — pour voter sur la tuile du plateau.',
   'crowd.instructionsFree': 'Tapez {example} pour placer un élément dans un tier.',
 
+  'templates.title': 'Partir d’un template',
+  'templates.hint':
+    'Des listes toutes prêtes à classer tout de suite, puis à modifier comme tu veux.',
+  'templates.search': 'Rechercher un template',
+  'templates.searchPlaceholder': 'Cherche un template ou un élément dedans…',
+  'templates.filter': 'Filtrer par catégorie',
+  'templates.noMatch':
+    'Rien ne correspond. Élargis la recherche, ou construis le tableau toi-même.',
+  'templates.use': 'Utiliser',
+  'templates.append': 'Ajouter au tableau',
+  'templates.appendHint': 'Garder le tableau actuel et mettre ces éléments dans la réserve',
+  'templates.used': '« {name} » lancé. Tout est dans la réserve.',
+  'templates.appended': '{count} tuiles ajoutées à la réserve.',
+  'templates.imagesNote':
+    'Les templates sont volontairement des tuiles texte : embarquer des logos et des photos reviendrait à embarquer le travail protégé d’autrui. Dépose tes propres images par-dessus, elles remplacent le texte.',
+  'templates.category.all': 'Tout',
+  'templates.category.games': 'Jeux',
+  'templates.category.screen': 'Films & séries',
+  'templates.category.music': 'Musique',
+  'templates.category.food': 'Bouffe',
+  'templates.category.brands': 'Marques',
+  'templates.category.internet': 'Internet',
+  'templates.category.life': 'Quotidien',
+  'templates.open': 'Parcourir les templates',
+  'empty.orTemplate': 'ou pars d’un template',
+
   'session.shareOpened': 'Tableau partagé ouvert. Il est à toi, tu peux l’éditer.',
   'session.shareFailed': 'Ce lien de partage n’a pas pu être ouvert.',
 

@@ -34,6 +34,7 @@ interface BoardCanvasProps {
   onSelect: (itemId: string | null) => void
   onPickFiles: () => void
   onAddTiles: (labels: string[]) => void
+  onBrowseTemplates: () => void
 }
 
 function targetZone(board: Board, overId: string): ZoneId | null {
@@ -42,7 +43,13 @@ function targetZone(board: Board, overId: string): ZoneId | null {
   return zoneOf(board, overId)
 }
 
-export function BoardCanvas({ selectedId, onSelect, onPickFiles, onAddTiles }: BoardCanvasProps) {
+export function BoardCanvas({
+  selectedId,
+  onSelect,
+  onPickFiles,
+  onAddTiles,
+  onBrowseTemplates,
+}: BoardCanvasProps) {
   const t = useT()
   const board = useBoardStore((state) => state.board)
   const place = useBoardStore((state) => state.place)
@@ -181,7 +188,11 @@ export function BoardCanvas({ selectedId, onSelect, onPickFiles, onAddTiles }: B
           under the content when the board is short, and pinned when it is long. */}
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {!hasItems ? (
-          <TestCard onPickFiles={onPickFiles} onAddTiles={onAddTiles} />
+          <TestCard
+            onPickFiles={onPickFiles}
+            onAddTiles={onAddTiles}
+            onBrowseTemplates={onBrowseTemplates}
+          />
         ) : (
           view.tiers.map((tier, index) => (
             <TierRow

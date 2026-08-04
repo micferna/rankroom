@@ -14,6 +14,7 @@ import { PaletteDialog } from '~/features/settings/PaletteDialog'
 import { ShareDialog } from '~/features/share/ShareDialog'
 import { ShelfDialog } from '~/features/shelf/ShelfDialog'
 import { StreamMode } from '~/features/stream/StreamMode'
+import { TemplateGallery } from '~/features/templates/TemplateGallery'
 import { useT } from '~/i18n'
 import type { MessageKey } from '~/i18n/en'
 import { useHotkeys } from '~/hooks/useHotkeys'
@@ -172,6 +173,16 @@ export function Studio({ shareToken }: StudioProps) {
         },
       },
       {
+        id: 'templates',
+        group: t('cmd.group.add'),
+        label: t('templates.open'),
+        icon: 'grid',
+        run: () => {
+          openDialog('templates')
+        },
+      },
+
+      {
         id: 'shelf',
         group: t('cmd.group.board'),
         label: t('cmd.shelf'),
@@ -315,6 +326,9 @@ export function Studio({ shareToken }: StudioProps) {
               onSelect={setSelectedId}
               onPickFiles={() => fileInputRef.current?.click()}
               onAddTiles={addTextTiles}
+              onBrowseTemplates={() => {
+                openDialog('templates')
+              }}
             />
             <Inspector
               selectedId={selectedId}
@@ -373,6 +387,7 @@ export function Studio({ shareToken }: StudioProps) {
       <ExportDialog open={dialog === 'export'} onClose={closeDialog} />
       <ShareDialog open={dialog === 'share'} onClose={closeDialog} />
       <ShelfDialog open={dialog === 'shelf'} onClose={closeDialog} />
+      <TemplateGallery open={dialog === 'templates'} onClose={closeDialog} />
       <PaletteDialog open={dialog === 'palette'} onClose={closeDialog} />
       <HelpDialog open={dialog === 'help'} onClose={closeDialog} />
       <Toasts />

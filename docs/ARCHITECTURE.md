@@ -105,6 +105,25 @@ the tile on deck, or applies the whole crowd ranking through the same `applyRank
 duel mode uses. That is a product decision as much as a technical one: the streamer stays
 the author of their own list.
 
+## Templates
+
+`src/lib/templates.ts` is data, not code: a flat array the gallery filters, searches and
+turns into boards. Three decisions are worth knowing before adding to it.
+
+**Text only.** Bundling logos, box art or photographs would mean redistributing other
+people's copyrighted work, for a feature whose whole point is that the user replaces the
+tiles with their own images anyway. A test asserts the module contains no `data:image` and
+no URLs, so this cannot drift.
+
+**Templates carry vocabulary, not just items.** A fast-food board reads far better as
+"Tonight … Never" than as S–F, so a template may bring its own ladder, palette and title.
+That is most of what makes one feel authored rather than generated — and it is why
+`boardFromTemplate` replaces the default tiers rather than only filling the bench.
+
+**Locale is a filter, not just a translation.** Item names are proper nouns and shared, but
+some lists only make sense in one language. `locales: ['fr']` keeps French streamers out of
+the English gallery instead of showing a list nobody there recognises.
+
 ## Internationalisation
 
 `src/i18n/en.ts` is the source of truth, and `fr.ts` is declared as

@@ -4,6 +4,22 @@ All notable changes to RankRoom are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Template gallery** — 26 ready-made boards across games, film and TV, music, food,
+  brands, internet and everyday life, searchable by template name or by any item inside
+  one. Templates can bring their own tier ladder ("Tonight → Never" for fast food), their
+  own palette and their own title. Use one as a new board, or drop its items onto the
+  current bench. All text, no bundled artwork.
+- The empty board now leads with the gallery rather than with a file picker.
+
+### Fixed
+
+- `<html lang>` was only updated when the locale changed, so a first visit from a French
+  browser still announced the page as English to assistive technology.
+
 ## [1.0.0] — 2026-08-04
 
 First public release.
@@ -65,4 +81,5 @@ First public release.
 - Command palette, keyboard shortcuts throughout, and a reduced-motion mode that means it.
 - Works offline through a dependency-free service worker.
 
+[unreleased]: https://github.com/micferna/rankroom/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/micferna/rankroom/releases/tag/v1.0.0

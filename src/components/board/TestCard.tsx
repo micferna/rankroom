@@ -6,6 +6,7 @@ import { AddTiles } from './AddTiles'
 interface TestCardProps {
   onPickFiles: () => void
   onAddTiles: (labels: string[]) => void
+  onBrowseTemplates: () => void
 }
 
 /**
@@ -13,7 +14,7 @@ interface TestCardProps {
  * empty board is: a channel with nothing on it yet. It doubles as the drop
  * target and the onboarding copy, so there is no separate tutorial to dismiss.
  */
-export function TestCard({ onPickFiles, onAddTiles }: TestCardProps) {
+export function TestCard({ onPickFiles, onAddTiles, onBrowseTemplates }: TestCardProps) {
   const t = useT()
 
   return (
@@ -36,10 +37,19 @@ export function TestCard({ onPickFiles, onAddTiles }: TestCardProps) {
         </p>
 
         <div className="mx-auto mt-5 flex max-w-sm flex-col items-center gap-2">
+          {/* A blank board is a blank page; most people arrive wanting to rank
+              something that already has a well-known list. */}
+          <button
+            type="button"
+            onClick={onBrowseTemplates}
+            className="h-8 w-full rounded-control bg-preview px-4 text-sm font-semibold text-room transition-[filter] hover:brightness-110"
+          >
+            {t('templates.open')}
+          </button>
           <button
             type="button"
             onClick={onPickFiles}
-            className="h-8 w-full rounded-control bg-preview px-4 text-sm font-semibold text-room transition-[filter] hover:brightness-110"
+            className="h-8 w-full rounded-control border border-edge px-4 text-sm text-chalk transition-colors hover:bg-rail"
           >
             {t('empty.chooseImages')}
           </button>

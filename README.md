@@ -29,6 +29,23 @@ Tier list makers are built for _making_ a tier list. RankRoom is built for the t
 minutes either side of that: deciding the order on camera, showing it to an audience
 while it happens, and walking away with assets you can actually publish.
 
+## Start in ten seconds
+
+A blank board is a blank page, so RankRoom opens with a gallery of ready-made lists —
+Nintendo series, shooters, consoles, Ghibli, directors, fast food, car brands, French
+streamers, programming languages, days of the week. Pick one, and everything is on the
+bench waiting to be ranked.
+
+<img src="docs/media/templates.png" alt="The template gallery, filtered by category" width="100%" />
+
+Templates carry more than a list of names: where a custom ladder says something S–F cannot,
+the template brings its own. Consoles are ranked **Generational → Forgotten**, fast food
+**Tonight → Never**, programming languages **By choice → Never again**.
+
+> **On images:** templates are text tiles on purpose. Shipping logos, box art and photos of
+> people would mean shipping other people's copyrighted work. Drop your own images on top
+> and they replace the text.
+
 ## What it does that others don't
 
 ### ⚔️ Duel mode — rank by picking a winner
@@ -117,6 +134,8 @@ takes**: the items you are furthest apart on. That list is the video.
   server, so nobody — including GitHub Pages — sees what you ranked. The link keeps working
   even if this site disappears.
 - **Works offline.** A service worker precaches the app, the fonts and the icons.
+- **26 built-in templates** across seven categories, searchable by name _or_ by an item
+  inside them — typing "bloodborne" finds the soulslike board.
 - **English and French**, detected from your browser and switchable from the header.
 - **Built for a phone as much as a desktop** — tiles size themselves to the viewport, five
   per row on a 390px screen, with no hover-only controls anywhere.
@@ -196,9 +215,10 @@ canvas renderer, the service worker, the share-link codec, the i18n layer, the T
 client and the icon generator are all first-party and dependency-free. `npm audit` reports
 zero vulnerabilities.
 
-The domain logic — placement, tier maths, the duel engine, the vote tally, the share codec,
-the untrusted-input parser — is pure and lives in [`src/lib/`](src/lib), covered by 117
-tests and importable without a DOM. React components read it; they do not reimplement it.
+The domain logic — placement, tier maths, the duel engine, the vote tally, the templates,
+the share codec, the untrusted-input parser — is pure and lives in [`src/lib/`](src/lib),
+covered by 137 tests and importable without a DOM. React components read it; they do not
+reimplement it.
 
 📐 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** walks through the data model, the undo
 system, the replay pipeline and the security boundaries.
