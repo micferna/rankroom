@@ -25,20 +25,26 @@ export function ShareDialog({ open, onClose }: ShareDialogProps) {
   const notify = useUiStore((state) => state.notify)
 
   const [withImages, setWithImages] = useState(true)
+  const [blind, setBlind] = useState(false)
   // The built link remembers what it was built from, so "still building" is
   // derived rather than a second piece of state that can fall out of sync.
-  const [built, setBuilt] = useState<{ board: Board; images: boolean; url: string } | null>(null)
+  const [built, setBuilt] = useState<{
+    board: Board
+    images: boolean
+    blind: boolean
+    url: string
+  } | null>(null)
 
-  const building = built?.board !== board || built.images !== withImages
+  const building = built?.board !== board || built.images !== withImages || built.blind !== blind
   const url = building ? '' : built.url
 
   useEffect(() => {
     if (!open) return
 
     let cancelled = false
-    void encodeBoard(board, { images: withImages })
+    void encodeBoard(board, { images: withImages, blind })
       .then((token) => {
-        if (!cancelled) setBuilt({ board, images: withImages, url: shareUrl(token) })
+        if (!cancelled) setBuilt({ board, images: withImages, blind, url: shareUrl(token) })
       })
       .catch(() => {
         if (!cancelled) setBuilt(null)
@@ -47,7 +53,7 @@ export function ShareDialog({ open, onClose }: ShareDialogProps) {
     return () => {
       cancelled = true
     }
-  }, [open, board, withImages])
+  }, [open, board, withImages, blind])
 
   const oversized = url.length > SHARE_SIZE_WARNING
 
@@ -56,7 +62,7 @@ export function ShareDialog({ open, onClose }: ShareDialogProps) {
       open={open}
       onClose={onClose}
       title={t('share.title')}
-      hint={t('share.hint')}
+      hint={blind ? t('share.blindSummary') : t('share.hint')}
       footer={
         <Button
           variant="primary"
@@ -86,6 +92,12 @@ export function ShareDialog({ open, onClose }: ShareDialogProps) {
       </label>
 
       <div className="mt-3">
+        <Switch
+          label={t('share.blind')}
+          hint={t('share.blindHint')}
+          checked={blind}
+          onChange={setBlind}
+        />
         <Switch
           label={t('share.withImages')}
           hint={t('share.withImagesHint')}

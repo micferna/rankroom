@@ -1,13 +1,17 @@
 import {
-  closestCorners,
+  closestCenter,
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   TouchSensor,
   useSensor,
   useSensors,
   type Announcements,
+  type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -18,7 +22,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { Button } from '~/components/ui/Button'
 import { useTileSize } from '~/hooks/useViewport'
 import { useT } from '~/i18n'
-import { itemsIn, moveItem, zoneItemIds, zoneOf } from '~/lib/board'
+import { itemsIn, moveItem } from '~/lib/board'
+import { finalDrop, overZone, previewDrop } from '~/lib/dnd'
 import { crowdGhosts, type CrowdPlacement } from '~/lib/crowd'
 import { selectTally, useCrowdStore } from '~/store/crowdStore'
 import { useBoardStore } from '~/store/boardStore'
@@ -38,10 +43,21 @@ interface BoardCanvasProps {
   onPickFolder: () => void
 }
 
-function targetZone(board: Board, overId: string): ZoneId | null {
-  if (overId === BENCH) return BENCH
-  if (board.tiers.some((tier) => tier.id === overId)) return overId
-  return zoneOf(board, overId)
+/**
+ * Pointer-first collision detection.
+ *
+ * `closestCorners` alone compares the drag against *every* droppable, tiles
+ * included, so a far-away tile in another row could win over the row the cursor
+ * was actually inside — "I drop it here and it lands somewhere else". Asking
+ * what is under the pointer first, and only falling back to geometry when the
+ * pointer is outside everything, matches what the user sees.
+ */
+const collisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args)
+  if (pointerCollisions.length > 0) return pointerCollisions
+
+  const intersections = rectIntersection(args)
+  return intersections.length > 0 ? intersections : closestCenter(args)
 }
 
 export function BoardCanvas({
@@ -59,6 +75,7 @@ export function BoardCanvas({
   const removeTier = useBoardStore((state) => state.removeTier)
   const updateTier = useBoardStore((state) => state.updateTier)
   const reorderTier = useBoardStore((state) => state.reorderTier)
+  const sortTier = useBoardStore((state) => state.sortTier)
   const shuffle = useBoardStore((state) => state.shuffle)
   const tileSize = useTileSize(useUiStore((state) => state.tileSize))
 
@@ -142,14 +159,14 @@ export function BoardCanvas({
         over
           ? t('tile.over', {
               label: view.items[active.id]?.label ?? t('tile.untitled'),
-              zone: zoneName(targetZone(view, String(over.id))),
+              zone: zoneName(overZone(view, String(over.id))),
             })
           : '',
       onDragEnd: ({ active, over }) =>
         over
           ? t('tile.dropped', {
               label: view.items[active.id]?.label ?? t('tile.untitled'),
-              zone: zoneName(targetZone(view, String(over.id))),
+              zone: zoneName(overZone(view, String(over.id))),
             })
           : t('tile.dropCancelled'),
       onDragCancel: () => t('tile.dropCancelled'),
@@ -170,16 +187,10 @@ export function BoardCanvas({
     const { active, over } = event
     if (!over || !draft) return
 
-    const itemId = String(active.id)
-    const overId = String(over.id)
-    if (itemId === overId) return
+    const target = previewDrop(draft, String(active.id), String(over.id))
+    if (!target) return
 
-    const zone = targetZone(draft, overId)
-    if (zone === null) return
-
-    const siblings = zoneItemIds(draft, zone)
-    const index = overId === zone ? siblings.length : siblings.indexOf(overId)
-    const next = moveItem(draft, itemId, zone, index < 0 ? siblings.length : index)
+    const next = moveItem(draft, String(active.id), target.zone, target.index)
     if (next !== draft) setDraft(next)
   }
 
@@ -191,10 +202,10 @@ export function BoardCanvas({
     setActiveId(null)
     if (!settled) return
 
-    const zone = zoneOf(settled, itemId)
-    if (zone === null) return
+    const target = finalDrop(settled, itemId, event.over ? String(event.over.id) : null)
+    if (!target) return
 
-    const index = zoneItemIds(settled, zone).indexOf(itemId)
+    const { zone, index } = target
     place(itemId, zone, index)
 
     // The rest of the selection follows, landing just after the dragged tile in
@@ -211,7 +222,10 @@ export function BoardCanvas({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
+      // Rows change size as tiles move between them, so cached rects go stale
+      // mid-drag and every later drop resolves against the old layout.
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       accessibility={{ announcements }}
       modifiers={[restrictToWindowEdges]}
       onDragStart={handleDragStart}
@@ -222,61 +236,66 @@ export function BoardCanvas({
         setActiveId(null)
       }}
     >
-      {/* One scroll area holds the tiers *and* the bench: sticky keeps the bench
-          under the content when the board is short, and pinned when it is long. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-        {!hasItems ? (
-          <TestCard
-            onPickFiles={onPickFiles}
-            onAddTiles={onAddTiles}
-            onBrowseTemplates={onBrowseTemplates}
-            onPickFolder={onPickFolder}
-          />
-        ) : (
-          view.tiers.map((tier, index) => (
-            <TierRow
-              key={tier.id}
-              tier={tier}
-              tileSize={tileSize}
-              items={itemsIn(view, tier.itemIds)}
-              ghosts={ghostsByTier?.get(tier.id)}
-              selection={selection}
-              onSelect={select}
-              onRename={(label) => {
-                updateTier(tier.id, { label })
-              }}
-              onRecolor={(color) => {
-                updateTier(tier.id, { color })
-              }}
-              onRemove={() => {
-                removeTier(tier.id)
-              }}
-              onMove={(direction) => {
-                reorderTier(index, index + direction)
-              }}
-              canMoveUp={index > 0}
-              canMoveDown={index < view.tiers.length - 1}
-              canRemove={view.tiers.length > 1}
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        {/* Only the tiers scroll. The bench stays put, because a drop target that
+            can scroll out of view is the worst kind. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+          {!hasItems ? (
+            <TestCard
+              onPickFiles={onPickFiles}
+              onAddTiles={onAddTiles}
+              onBrowseTemplates={onBrowseTemplates}
+              onPickFolder={onPickFolder}
             />
-          ))
-        )}
+          ) : (
+            view.tiers.map((tier, index) => (
+              <TierRow
+                key={tier.id}
+                tier={tier}
+                tileSize={tileSize}
+                items={itemsIn(view, tier.itemIds)}
+                ghosts={ghostsByTier?.get(tier.id)}
+                selection={selection}
+                onSelect={select}
+                onRename={(label) => {
+                  updateTier(tier.id, { label })
+                }}
+                onRecolor={(color) => {
+                  updateTier(tier.id, { color })
+                }}
+                onRemove={() => {
+                  removeTier(tier.id)
+                }}
+                onMove={(direction) => {
+                  reorderTier(index, index + direction)
+                }}
+                onSort={(order) => {
+                  sortTier(tier.id, order)
+                }}
+                canMoveUp={index > 0}
+                canMoveDown={index < view.tiers.length - 1}
+                canRemove={view.tiers.length > 1}
+              />
+            ))
+          )}
 
-        {hasItems ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="plus"
-            className="mt-0.5 self-start"
-            onClick={() => {
-              addTier(view.tiers.length)
-            }}
-          >
-            {t('tier.add')}
-          </Button>
-        ) : null}
+          {hasItems ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="plus"
+              className="mt-0.5 self-start"
+              onClick={() => {
+                addTier(view.tiers.length)
+              }}
+            >
+              {t('tier.add')}
+            </Button>
+          ) : null}
+        </div>
 
         <Bench
-          className="sticky bottom-0 mt-2"
+          className="shrink-0"
           items={itemsIn(view, view.bench)}
           tileSize={tileSize}
           selection={selection}

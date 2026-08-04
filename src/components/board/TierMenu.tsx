@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '~/components/ui/Icon'
 import { useT } from '~/i18n'
+import type { MessageKey } from '~/i18n/en'
+import type { TierSort } from '~/lib/board'
 import { cx } from '~/lib/cx'
 
 interface TierMenuProps {
@@ -13,6 +15,8 @@ interface TierMenuProps {
   canRemove: boolean
   onMove: (direction: -1 | 1) => void
   onRemove: () => void
+  onSort: (order: TierSort) => void
+  canSort: boolean
 }
 
 /**
@@ -32,6 +36,8 @@ export function TierMenu({
   canRemove,
   onMove,
   onRemove,
+  onSort,
+  canSort,
 }: TierMenuProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -115,6 +121,27 @@ export function TierMenu({
             <Icon name="chevronDown" size={13} />
             {t('tier.moveDown', { label })}
           </button>
+          <div className="my-1 border-t border-edge" role="separator" />
+
+          {(['alpha', 'reverse-alpha', 'shuffle'] as const).map((order) => (
+            <button
+              key={order}
+              type="button"
+              role="menuitem"
+              className={cx(item, 'hover:bg-rail')}
+              disabled={!canSort}
+              onClick={() => {
+                onSort(order)
+                setOpen(false)
+              }}
+            >
+              <Icon name={order === 'shuffle' ? 'shuffle' : 'layers'} size={13} />
+              {t(`tier.sort.${order}` as MessageKey)}
+            </button>
+          ))}
+
+          <div className="my-1 border-t border-edge" role="separator" />
+
           <button
             type="button"
             role="menuitem"

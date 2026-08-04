@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { addItems, createBoard, createItem, moveItem } from './board'
 import {
   castVote,
+  isBlocked,
+  voteWeight,
+  type VoterRoles,
   crowdGhosts,
   crowdOrder,
   DEFAULT_CROWD_CONFIG,
@@ -20,8 +23,8 @@ function boardWith(labels: string[]): Board {
   )
 }
 
-function vote(user: string, itemId: string, tierId: string, at = 1_000): CrowdVote {
-  return { user, display: user, itemId, tierId, at }
+function vote(user: string, itemId: string, tierId: string, at = 1_000, weight = 1): CrowdVote {
+  return { user, display: user, itemId, tierId, at, weight }
 }
 
 const deck = (patch: Partial<CrowdConfig> = {}): CrowdConfig => ({
@@ -241,5 +244,83 @@ describe('crowdOrder', () => {
 
   it('is empty when nobody voted', () => {
     expect(crowdOrder(tallyVotes(new Map(), boardWith(['a'])), boardWith(['a']))).toEqual([])
+  })
+})
+
+describe('voteWeight', () => {
+  const roles = (patch: Partial<VoterRoles> = {}): VoterRoles => ({
+    subscriber: false,
+    moderator: false,
+    vip: false,
+    broadcaster: false,
+    ...patch,
+  })
+
+  it('counts everyone equally by default', () => {
+    expect(voteWeight(roles(), DEFAULT_CROWD_CONFIG)).toBe(1)
+    expect(voteWeight(roles({ subscriber: true }), DEFAULT_CROWD_CONFIG)).toBe(1)
+  })
+
+  it('weights subscribers when the streamer asks for it', () => {
+    const config = { ...DEFAULT_CROWD_CONFIG, subWeight: 3 }
+    expect(voteWeight(roles({ subscriber: true }), config)).toBe(3)
+    expect(voteWeight(roles(), config)).toBe(1)
+  })
+
+  it('treats VIPs, mods and the broadcaster as privileged too', () => {
+    const config = { ...DEFAULT_CROWD_CONFIG, subWeight: 2 }
+    for (const role of ['vip', 'moderator', 'broadcaster'] as const) {
+      expect(voteWeight(roles({ [role]: true }), config)).toBe(2)
+    }
+  })
+
+  it('silences everyone else in subs-only mode', () => {
+    const config = { ...DEFAULT_CROWD_CONFIG, subsOnly: true }
+    expect(voteWeight(roles(), config)).toBe(0)
+    expect(voteWeight(roles({ subscriber: true }), config)).toBe(1)
+  })
+
+  it('never lets a weight fall below one for a privileged voter', () => {
+    const config = { ...DEFAULT_CROWD_CONFIG, subWeight: 0 }
+    expect(voteWeight(roles({ subscriber: true }), config)).toBe(1)
+  })
+})
+
+describe('isBlocked', () => {
+  it('matches regardless of case', () => {
+    const config = { ...DEFAULT_CROWD_CONFIG, blocked: ['spammer'] }
+    expect(isBlocked('SpAmMeR', config)).toBe(true)
+    expect(isBlocked('someone', config)).toBe(false)
+  })
+})
+
+describe('weighted tallies', () => {
+  it('lets a weighted minority win', () => {
+    const board = boardWith(['a'])
+    const itemId = board.bench[0]!
+
+    let votes = new Map()
+    votes = castVote(votes, vote('u1', itemId, board.tiers[0]!.id, 1_000, 5))
+    votes = castVote(votes, vote('u2', itemId, board.tiers[3]!.id))
+    votes = castVote(votes, vote('u3', itemId, board.tiers[3]!.id))
+
+    expect(tallyVotes(votes, board).placements.get(itemId)?.tierId).toBe(board.tiers[0]!.id)
+  })
+
+  it('ignores votes with no weight at all', () => {
+    const board = boardWith(['a'])
+    const votes = castVote(new Map(), vote('muted', board.bench[0]!, board.tiers[0]!.id, 1_000, 0))
+
+    const tally = tallyVotes(votes, board)
+    expect(tally.voters).toBe(0)
+    expect(tally.placements.size).toBe(0)
+  })
+
+  it('hides a placement until it clears the minimum', () => {
+    const board = boardWith(['a'])
+    const votes = castVote(new Map(), vote('u1', board.bench[0]!, board.tiers[0]!.id))
+
+    expect(tallyVotes(votes, board, 3).placements.size).toBe(0)
+    expect(tallyVotes(votes, board, 1).placements.size).toBe(1)
   })
 })

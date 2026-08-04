@@ -22,6 +22,34 @@ export interface ChatMessage {
   display: string
   text: string
   at: number
+  /** Roles Twitch reports for this viewer, from the `badges` tag. */
+  roles: ChatRoles
+}
+
+export interface ChatRoles {
+  subscriber: boolean
+  moderator: boolean
+  vip: boolean
+  broadcaster: boolean
+}
+
+const NO_ROLES: ChatRoles = {
+  subscriber: false,
+  moderator: false,
+  vip: false,
+  broadcaster: false,
+}
+
+/** `badges=subscriber/12,moderator/1` → the roles we care about. */
+export function parseBadges(value: string): ChatRoles {
+  const names = new Set(value.split(',').map((badge) => badge.split('/')[0]))
+  return {
+    // Twitch reports founders as subscribers for everything except the badge.
+    subscriber: names.has('subscriber') || names.has('founder'),
+    moderator: names.has('moderator'),
+    vip: names.has('vip'),
+    broadcaster: names.has('broadcaster'),
+  }
 }
 
 export interface ChatConnection {
@@ -47,6 +75,7 @@ export function isValidChannel(channel: string): boolean {
 export function parsePrivmsg(line: string): ChatMessage | null {
   let rest = line
   let display = ''
+  let roles = NO_ROLES
 
   if (rest.startsWith('@')) {
     const end = rest.indexOf(' ')
@@ -57,6 +86,7 @@ export function parsePrivmsg(line: string): ChatMessage | null {
     for (const pair of tags.split(';')) {
       const [key, value] = pair.split('=')
       if (key === 'display-name' && value) display = value
+      if (key === 'badges' && value) roles = parseBadges(value)
     }
   }
 
@@ -75,7 +105,7 @@ export function parsePrivmsg(line: string): ChatMessage | null {
   if (textStart === -1) return null
 
   const text = rest.slice(textStart + 2)
-  return { user, display: display || user, text, at: Date.now() }
+  return { user, display: display || user, text, at: Date.now(), roles }
 }
 
 /**

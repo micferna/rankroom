@@ -214,6 +214,48 @@ export function itemsIn(board: Board, ids: readonly ItemId[]): Item[] {
   return ids.map((id) => board.items[id]).filter((item): item is Item => item !== undefined)
 }
 
+export type TierSort = 'alpha' | 'reverse-alpha' | 'added' | 'shuffle'
+
+/**
+ * Reorders one tier's tiles. Only that tier changes.
+ *
+ * `added` restores the order the items were created in, which is the order a
+ * folder or a template put them on the bench — the closest thing to "undo my
+ * fiddling" without touching the undo stack.
+ */
+export function sortTier(
+  board: Board,
+  tierId: TierId,
+  order: TierSort,
+  random: () => number = Math.random,
+): Board {
+  const tier = board.tiers.find((candidate) => candidate.id === tierId)
+  if (!tier || tier.itemIds.length < 2) return board
+
+  const creationOrder = Object.keys(board.items)
+  const labelOf = (id: ItemId) => board.items[id]?.label ?? ''
+
+  let itemIds: ItemId[]
+  if (order === 'shuffle') {
+    itemIds = shuffle(tier.itemIds, random)
+  } else if (order === 'added') {
+    itemIds = [...tier.itemIds].sort((a, b) => creationOrder.indexOf(a) - creationOrder.indexOf(b))
+  } else {
+    const direction = order === 'alpha' ? 1 : -1
+    itemIds = [...tier.itemIds].sort(
+      (a, b) => direction * labelOf(a).localeCompare(labelOf(b), undefined, { numeric: true }),
+    )
+  }
+
+  if (sameOrder(itemIds, tier.itemIds)) return board
+  return touch({
+    ...board,
+    tiers: board.tiers.map((candidate) =>
+      candidate.id === tierId ? { ...candidate, itemIds } : candidate,
+    ),
+  })
+}
+
 export function itemCount(board: Board): number {
   return Object.keys(board.items).length
 }

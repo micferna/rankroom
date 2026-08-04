@@ -261,6 +261,43 @@ rather than its container. Cards measured 491px inside a 350px dialog on a phone
 on the item is the fix, and it is worth adding pre-emptively to any grid child holding
 free text.
 
+## Drag and drop
+
+`src/lib/dnd.ts` decides where a tile lands; the component only wires it up. That split
+exists because the decision was where the bugs were, and "I drop it here and it goes
+somewhere else" is not something a component test can pin down.
+
+Three things had to be right, and all three were wrong at once:
+
+- **Measuring.** Rows change size as tiles move between them, so droppable rectangles must
+  be re-measured during the drag (`MeasuringStrategy.Always`). Cached rects meant every
+  later drop resolved against a layout that no longer existed.
+- **Collision.** `closestCorners` compares the drag against _every_ droppable, tiles
+  included, so a far-away tile could beat the row the cursor was inside. Asking what is
+  under the pointer first, and falling back to geometry only when it is outside
+  everything, matches what the user sees.
+- **Feedback.** Reordering inside a zone during `dragOver` moved the tile under the cursor,
+  which made the cursor hover the tile itself, which made every later move a no-op — a
+  tile stuck in the first slot it happened to reach. Same-zone ordering is left entirely to
+  dnd-kit's sortable strategy; only crossing zones is previewed.
+
+The bench also sits _outside_ the scrolling area. A drop target that can scroll out of
+view is the worst kind, and a sticky one inside the scroller invalidates its own rect.
+
+## Testing
+
+Two layers, deliberately:
+
+- **`src/**/*.test.ts`** — the pure domain logic and the stores, in jsdom. Fast, run on
+  every commit, and where nearly all the coverage lives.
+- **`e2e/`** — Playwright against the production build, for the things jsdom cannot
+  answer: pointer drag and drop, canvas exports, native `<dialog>`, and share links
+  surviving a real navigation. Run on a desktop and a phone viewport.
+
+The split is a rule rather than a habit: if a test can be written without a browser, it is
+written without one. The browser suite exists for the handful of behaviours that genuinely
+need one — and every bug listed in the changelog under "drag and drop" is one of them.
+
 ## Accessibility
 
 - One focus treatment, applied globally via `:focus-visible`, never removed.

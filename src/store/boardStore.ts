@@ -12,9 +12,11 @@ import {
   renameItem,
   resetPlacements,
   shuffleBench,
+  sortTier,
   updateTier,
   zoneOf,
 } from '~/lib/board'
+import type { TierSort } from '~/lib/board'
 import { DEFAULT_PALETTE, paletteById, type Palette } from '~/lib/palette'
 import {
   BENCH,
@@ -46,9 +48,15 @@ export interface BoardStore {
   future: Board[]
   /** Wall-clock start of the session, used for replay timestamps. */
   startedAt: number
+  /**
+   * The share token behind a blind-ranking invitation, held until the user is
+   * ready to compare against it.
+   */
+  blindChallenge: string | null
   lastCoalesce: { key: string; at: number } | null
 
   replaceBoard: (board: Board, options?: { keepMoves?: boolean }) => void
+  setBlindChallenge: (token: string | null) => void
   newBoard: () => void
 
   place: (itemId: ItemId, toZone: ZoneId, toIndex: number) => void
@@ -63,6 +71,7 @@ export interface BoardStore {
   removeTier: (tierId: TierId) => void
   updateTier: (tierId: TierId, patch: Partial<Omit<Tier, 'id'>>) => void
   reorderTier: (fromIndex: number, toIndex: number) => void
+  sortTier: (tierId: TierId, order: TierSort) => void
   setPalette: (paletteId: string) => void
 
   clearPlacements: () => void
@@ -111,7 +120,12 @@ export const useBoardStore = create<BoardStore>()((set, get) => {
     past: [],
     future: [],
     startedAt: Date.now(),
+    blindChallenge: null,
     lastCoalesce: null,
+
+    setBlindChallenge: (blindChallenge) => {
+      set({ blindChallenge })
+    },
 
     replaceBoard: (board, options = {}) => {
       set({
@@ -169,6 +183,9 @@ export const useBoardStore = create<BoardStore>()((set, get) => {
     },
     reorderTier: (fromIndex, toIndex) => {
       commit(moveTier(get().board, fromIndex, toIndex))
+    },
+    sortTier: (tierId, order) => {
+      commit(sortTier(get().board, tierId, order))
     },
     setPalette: (paletteId) => {
       set({ paletteId })

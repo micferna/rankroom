@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import {
   castVote,
   DEFAULT_CROWD_CONFIG,
+  isBlocked,
+  voteWeight,
   parseVote,
   pruneVotes,
   tallyVotes,
@@ -10,7 +12,12 @@ import {
   type CrowdVote,
 } from '~/lib/crowd'
 import { preferences } from '~/lib/storage'
-import { connectTwitchChat, type ChatConnection, type ChatStatus } from '~/lib/twitch'
+import {
+  connectTwitchChat,
+  type ChatConnection,
+  type ChatRoles,
+  type ChatStatus,
+} from '~/lib/twitch'
 import type { Board, ItemId } from '~/types'
 import { useBoardStore } from './boardStore'
 
@@ -43,11 +50,18 @@ interface CrowdStore {
   setShowGhosts: (show: boolean) => void
   clearVotes: () => void
   /** Test seam: feed a chat line without a socket. */
-  ingest: (user: string, display: string, text: string) => void
+  ingest: (user: string, display: string, text: string, roles?: ChatRoles) => void
 }
 
 // The socket lives outside React state: it is not rendered, and it must survive
 // re-renders and mode changes without reconnecting.
+const NO_ROLES: ChatRoles = {
+  subscriber: false,
+  moderator: false,
+  vip: false,
+  broadcaster: false,
+}
+
 let connection: ChatConnection | null = null
 let feedId = 0
 
@@ -73,7 +87,7 @@ export const useCrowdStore = create<CrowdStore>()((set, get) => ({
         set({ status })
       },
       onMessage: (message) => {
-        get().ingest(message.user, message.display, message.text)
+        get().ingest(message.user, message.display, message.text, message.roles)
       },
     })
   },
@@ -100,9 +114,11 @@ export const useCrowdStore = create<CrowdStore>()((set, get) => ({
     set({ votes: new Map() })
   },
 
-  ingest: (user, display, text) => {
+  ingest: (user, display, text, roles = NO_ROLES) => {
     const state = get()
     const board = useBoardStore.getState().board
+
+    if (isBlocked(user, state.config)) return
 
     const parsed = parseVote(text, {
       board,
@@ -123,7 +139,15 @@ export const useCrowdStore = create<CrowdStore>()((set, get) => ({
       return
     }
 
-    const vote: CrowdVote = { user, display, at: Date.now(), ...parsed }
+    const weight = voteWeight(roles, state.config)
+    // A zero weight means "not allowed to vote here": the line is shown in the
+    // feed but does not count, which is far less confusing than dropping it.
+    if (weight <= 0) {
+      set({ feed: [{ ...entry, counted: false }, ...state.feed.slice(1)] })
+      return
+    }
+
+    const vote: CrowdVote = { user, display, at: Date.now(), weight, ...parsed }
     set({ feed, votes: castVote(state.votes, vote) })
   },
 }))
@@ -133,6 +157,7 @@ export function selectTally(
   votes: Map<string, CrowdVote>,
   board: Board,
   windowMs: number,
+  minVotes = 1,
 ): CrowdTally {
-  return tallyVotes(pruneVotes(votes, board, windowMs, Date.now()), board)
+  return tallyVotes(pruneVotes(votes, board, windowMs, Date.now()), board, minVotes)
 }

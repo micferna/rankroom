@@ -29,8 +29,26 @@ All notable changes to RankRoom are recorded here. The format follows
 - **The replay can end on the crowd's verdict** — chat's picks fade in over the finished
   board with the biggest disagreement ringed in red.
 
+- **Blind ranking challenges** — a share link that carries the tiles without your
+  placements. They rank it unseen, and Compare lines the two up when they are done.
+- **Weighted and moderated crowd votes** — subscriber, VIP and mod badges are read from
+  the chat tags, so a channel can weight them, restrict voting, require a minimum before a
+  ghost appears, or ignore a viewer outright. All off by default.
+- **Sort a tier** A→Z, Z→A or at random, from the tier menu.
+- **An error boundary**, so a render crash offers a reload instead of a white page — the
+  board is autosaved, and the user needs to be told that.
+- **End-to-end tests** in a real browser: pointer drag and drop, keyboard placement, the
+  duel flow, exports, and share-link round trips, on a desktop and a phone viewport.
+
 ### Fixed
 
+- **Drag and drop placed tiles in the wrong slot, then locked them there.** Three causes,
+  all fixed: droppable rectangles were never re-measured while rows changed size,
+  `closestCorners` could pick a tile in another row over the one under the pointer, and
+  reordering inside a zone fed back on itself so a tile became stuck in the first slot it
+  landed in. The placement decision now lives in `src/lib/dnd.ts`, covered by tests.
+- **The replay exported WebM, which TikTok, Instagram and X all reject.** MP4 is preferred
+  where the browser really supports it, which is Chrome 130+ and Safari.
 - **Duel runs no longer evaporate.** The state lived in the component, so leaving the tab
   mid-run threw away every answer. It survives now, and an in-progress run has a visible
   way out.

@@ -188,12 +188,20 @@ function createStage(board: Board, options: ReplayOptions): Stage {
   return { canvas, draw }
 }
 
-/** Codecs in preference order; the first one this browser supports wins. */
+/**
+ * Codecs in preference order.
+ *
+ * MP4 first, deliberately: TikTok, Instagram and X all reject WebM, and only
+ * YouTube takes it. Chrome has recorded MP4 since v130 and Safari always has,
+ * so most people now get a file they can actually upload. WebM remains the
+ * fallback for Firefox and older Chrome.
+ */
 const CODECS = [
+  'video/mp4;codecs=avc1.42E01E',
+  'video/mp4',
   'video/webm;codecs=vp9',
   'video/webm;codecs=vp8',
   'video/webm',
-  'video/mp4',
 ] as const
 
 export function supportsReplayExport(): boolean {

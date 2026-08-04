@@ -1,4 +1,5 @@
 import type { Board } from '~/types'
+import { resetPlacements } from './board'
 import { BoardParseError, parseBoard, serializeBoard } from './schema'
 
 /**
@@ -10,6 +11,9 @@ import { BoardParseError, parseBoard, serializeBoard } from './schema'
 
 const TAG_DEFLATE = '1z'
 const TAG_PLAIN = '1u'
+
+/** Marks a board whose placements were deliberately stripped. */
+export const BLIND_MARKER = 'blind'
 
 /** Beyond this, links start breaking in chat clients that wrap or truncate URLs. */
 export const SHARE_SIZE_WARNING = 12_000
@@ -87,11 +91,18 @@ async function inflate(bytes: Uint8Array): Promise<Uint8Array> {
   return collect(byteStream(bytes).pipeThrough(new DecompressionStream('deflate-raw')))
 }
 
-export async function encodeBoard(
-  board: Board,
-  options: { images?: boolean } = {},
-): Promise<string> {
-  const json = JSON.stringify(serializeBoard(board, options))
+export interface EncodeOptions {
+  images?: boolean
+  /**
+   * Strips every placement, so the receiver ranks the same items without seeing
+   * your answer. The comparison afterwards is the whole point of the format.
+   */
+  blind?: boolean
+}
+
+export async function encodeBoard(board: Board, options: EncodeOptions = {}): Promise<string> {
+  const source = options.blind ? blindBoard(board) : board
+  const json = JSON.stringify(serializeBoard(source, options))
   const bytes = encoder.encode(json)
 
   if (!supportsCompression()) return TAG_PLAIN + toBase64Url(bytes)
@@ -126,6 +137,30 @@ export async function decodeBoard(token: string): Promise<Board> {
   }
 
   return parseBoard(raw)
+}
+
+/**
+ * The same board with nothing ranked, and a marker the opener can recognise.
+ * The marker rides in the subtitle rather than a new schema field so an older
+ * build still opens the link — it just shows an unranked board, which is the
+ * honest degradation.
+ */
+function blindBoard(board: Board): Board {
+  return {
+    ...resetPlacements(board),
+    subtitle: board.subtitle ? `${board.subtitle} · ${BLIND_MARKER}` : BLIND_MARKER,
+  }
+}
+
+/** True when a board arrived through a blind-ranking link. */
+export function isBlindBoard(board: Board): boolean {
+  return board.subtitle.trim().endsWith(BLIND_MARKER)
+}
+
+/** The board with the marker taken back out, ready to edit. */
+export function withoutBlindMarker(board: Board): Board {
+  const subtitle = board.subtitle.replace(new RegExp(`\\s*·?\\s*${BLIND_MARKER}$`), '').trim()
+  return { ...board, subtitle }
 }
 
 /** Absolute link that reopens the board, images included when they fit. */

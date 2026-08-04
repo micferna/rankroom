@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { TileFace } from '~/components/board/Tile'
 import { Button } from '~/components/ui/Button'
-import { Field, Segmented, Switch } from '~/components/ui/Field'
+import { Icon } from '~/components/ui/Icon'
+import { Field, Segmented, Slider, Switch } from '~/components/ui/Field'
 import { useT } from '~/i18n'
 import { itemsIn } from '~/lib/board'
 import { crowdOrder } from '~/lib/crowd'
@@ -56,8 +57,8 @@ export function CrowdMode() {
   const [draftChannel, setDraftChannel] = useState(channel)
 
   const tally = useMemo(
-    () => selectTally(votes, board, config.windowMs),
-    [votes, board, config.windowMs],
+    () => selectTally(votes, board, config.windowMs, config.minVotes),
+    [votes, board, config.windowMs, config.minVotes],
   )
   const deckItem = deckItemId ? board.items[deckItemId] : undefined
   const deckPlacement = deckItemId ? tally.placements.get(deckItemId) : undefined
@@ -97,6 +98,12 @@ export function CrowdMode() {
     }
     applyRanking(order)
     notify(t('crowd.acceptedAll', { count: order.length, voters: tally.voters }), 'good')
+  }
+
+  const block = (user: string) => {
+    if (config.blocked.includes(user)) return
+    setConfig({ blocked: [...config.blocked, user] })
+    notify(t('crowd.blocked', { user }), 'good')
   }
 
   const pickDeck = (itemId: ItemId) => {
@@ -298,7 +305,45 @@ export function CrowdMode() {
             />
           </div>
 
+          <div className="mt-3 border-t border-edge pt-2">
+            <p className="slug mb-1.5">{t('crowd.weighting')}</p>
+            <Segmented
+              label={t('crowd.weighting')}
+              value={String(config.subWeight)}
+              options={[
+                { value: '1', label: t('crowd.weightEqual') },
+                { value: '2', label: '×2' },
+                { value: '3', label: '×3' },
+              ]}
+              onChange={(value) => {
+                setConfig({ subWeight: Number(value) })
+              }}
+            />
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate">{t('crowd.weightHint')}</p>
+
+            <div className="mt-2">
+              <Slider
+                label={t('crowd.minVotes')}
+                min={1}
+                max={20}
+                value={config.minVotes}
+                onChange={(minVotes) => {
+                  setConfig({ minVotes })
+                }}
+                readout={t('crowd.minVotesReadout', { count: config.minVotes })}
+              />
+            </div>
+          </div>
+
           <div className="mt-2 border-t border-edge pt-1">
+            <Switch
+              label={t('crowd.subsOnly')}
+              hint={t('crowd.subsOnlyHint')}
+              checked={config.subsOnly}
+              onChange={(subsOnly) => {
+                setConfig({ subsOnly })
+              }}
+            />
             <Switch
               label={t('crowd.openOnly')}
               checked={config.openOnly}
@@ -344,6 +389,18 @@ export function CrowdMode() {
             >
               {t('crowd.clearVotes')}
             </Button>
+            {config.blocked.length > 0 ? (
+              <Button
+                variant="ghost"
+                icon="undo"
+                size="sm"
+                onClick={() => {
+                  setConfig({ blocked: [] })
+                }}
+              >
+                {t('crowd.unblockAll', { count: config.blocked.length })}
+              </Button>
+            ) : null}
           </div>
         </section>
 
@@ -357,11 +414,22 @@ export function CrowdMode() {
                 <li
                   key={entry.id}
                   className={cx(
-                    'truncate rounded-control px-1.5 py-0.5 text-[11px]',
+                    'group/line flex items-baseline gap-1 rounded-control px-1.5 py-0.5 text-[11px]',
                     entry.counted ? 'bg-preview/10 text-chalk' : 'text-slate',
                   )}
                 >
-                  <span className="font-semibold">{entry.display}</span> {entry.text}
+                  <span className="shrink-0 font-semibold">{entry.display}</span>
+                  <span className="min-w-0 flex-1 truncate">{entry.text}</span>
+                  <button
+                    type="button"
+                    title={t('crowd.block', { user: entry.display })}
+                    onClick={() => {
+                      block(entry.display.toLowerCase())
+                    }}
+                    className="shrink-0 text-program opacity-0 transition-opacity group-hover/line:opacity-100 focus-visible:opacity-100"
+                  >
+                    <Icon name="close" size={11} />
+                  </button>
                 </li>
               ))}
             </ul>

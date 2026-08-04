@@ -35,7 +35,7 @@ export const fr: Record<keyof typeof en, string> = {
 
   'tile.untitled': 'Tuile sans nom',
   'tile.pickedUp': '{label} saisie.',
-  'tile.over': '{label} est au-dessus de {zone}.',
+  'tile.over': '{label} survole {zone}.',
   'tile.dropped': '{label} déposée dans {zone}.',
   'tile.dropCancelled': 'Dépôt annulé.',
   'tile.zoneBench': 'la réserve',
@@ -49,6 +49,9 @@ export const fr: Record<keyof typeof en, string> = {
   'tier.moveDown': 'Descendre le tier {label}',
   'tier.remove': 'Supprimer le tier {label}',
   'tier.menu': 'Options du tier {label}',
+  'tier.sort.alpha': 'Trier de A à Z',
+  'tier.sort.reverse-alpha': 'Trier de Z à A',
+  'tier.sort.shuffle': 'Mélanger ce tier',
   'tier.dropHere': 'Déposer ici',
   'tier.add': 'Ajouter un tier',
 
@@ -251,6 +254,17 @@ export const fr: Record<keyof typeof en, string> = {
   'share.oversized':
     'Ce lien est assez long pour que certaines messageries le coupent. Envoie-le en fichier, ou désactive les images — les noms seuls s’ouvrent quand même dans RankRoom.',
 
+  'share.blind': 'Défi de classement à l’aveugle',
+  'share.blindHint':
+    'Envoie les mêmes tuiles sans aucun placement : l’autre classe sans voir le tien.',
+  'share.blindSummary':
+    'Il reçoit les tuiles, pas tes réponses. Le mode Comparer aligne les deux ensuite.',
+  'session.blindOpened': 'Un défi à l’aveugle. Classe-le, puis ouvre Comparer pour voir l’écart.',
+  'compare.challenge': 'Défi à l’aveugle',
+  'compare.challengeHint':
+    'Quelqu’un t’a envoyé ces tuiles sans son classement. Compare quand tu as fini.',
+  'compare.useChallenge': 'Comparer avec son classement',
+
   'shelf.title': 'Tes tableaux',
   'shelf.hint':
     'Enregistrés dans ce navigateur uniquement — exporte un .json pour en déplacer un ailleurs.',
@@ -357,6 +371,18 @@ export const fr: Record<keyof typeof en, string> = {
   'crowd.window': 'Durée de vie des votes',
   'crowd.windowForever': 'Sans expiration',
   'crowd.windowMinutes': '{count} min',
+  'crowd.weighting': 'Poids des subs',
+  'crowd.weightEqual': 'Tout le monde égal',
+  'crowd.weightHint':
+    'Les subs, VIP et modérateurs comptent pour autant. Désactivé par défaut — un vote qui compte double en silence est pire que pas de pondération.',
+  'crowd.subsOnly': 'Subs uniquement',
+  'crowd.subsOnlyHint':
+    'Les autres apparaissent toujours dans le chat, mais leurs votes ne comptent pas.',
+  'crowd.minVotes': 'Minimum pour afficher',
+  'crowd.minVotesReadout': '{count} votes',
+  'crowd.block': 'Ignorer {user}',
+  'crowd.blocked': '{user} est maintenant ignoré.',
+  'crowd.unblockAll': 'Réintégrer {count}',
   'crowd.showGhosts': 'Afficher le calque commu',
   'crowd.showGhostsHint': 'Tuiles translucides sous les tiennes, sur le tableau et l’overlay',
 

@@ -4,3 +4,5 @@ node_modules
 public/fonts
 *.woff2
 package-lock.json
+test-results
+playwright-report

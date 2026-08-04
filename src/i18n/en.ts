@@ -54,6 +54,9 @@ export const en = {
   'tier.moveDown': 'Move tier {label} down',
   'tier.remove': 'Remove tier {label}',
   'tier.menu': 'Tier {label} options',
+  'tier.sort.alpha': 'Sort A → Z',
+  'tier.sort.reverse-alpha': 'Sort Z → A',
+  'tier.sort.shuffle': 'Shuffle this tier',
   'tier.dropHere': 'Drop here',
   'tier.add': 'Add tier',
 
@@ -255,6 +258,18 @@ export const en = {
   'share.oversized':
     'This link is long enough that some chat apps will wrap or cut it. Send it as a file, or turn images off — the names alone still open in RankRoom.',
 
+  'share.blind': 'Blind ranking challenge',
+  'share.blindHint':
+    'Sends the same tiles with no placements, so they rank it without seeing yours.',
+  'share.blindSummary':
+    'They get the tiles, not your answers. Compare mode lines the two up afterwards.',
+  'session.blindOpened':
+    'A blind ranking challenge. Rank it, then open Compare to see how you did.',
+  'compare.challenge': 'Blind challenge',
+  'compare.challengeHint':
+    'Someone sent you these tiles without their ranking. Compare when you are done.',
+  'compare.useChallenge': 'Compare with their ranking',
+
   'shelf.title': 'Your boards',
   'shelf.hint': 'Saved in this browser only — export a .json file to move one elsewhere.',
   'shelf.empty': 'Nothing saved yet. Save the board you are working on to keep it here.',
@@ -359,6 +374,17 @@ export const en = {
   'crowd.window': 'Vote lifetime',
   'crowd.windowForever': 'Never expires',
   'crowd.windowMinutes': '{count} min',
+  'crowd.weighting': 'Subscriber weight',
+  'crowd.weightEqual': 'Everyone equal',
+  'crowd.weightHint':
+    'Subscribers, VIPs and mods count for this much. Off by default — a vote that silently counts double is worse than no weighting.',
+  'crowd.subsOnly': 'Subscribers only',
+  'crowd.subsOnlyHint': 'Everyone else still appears in chat, but their votes do not count.',
+  'crowd.minVotes': 'Minimum to show',
+  'crowd.minVotesReadout': '{count} votes',
+  'crowd.block': 'Ignore {user}',
+  'crowd.blocked': '{user} is now ignored.',
+  'crowd.unblockAll': 'Un-ignore {count}',
   'crowd.showGhosts': 'Show the crowd layer',
   'crowd.showGhostsHint': 'Translucent tiles under yours, on the board and the overlay',
 

@@ -23,6 +23,9 @@ export function CompareMode() {
   const board = useBoardStore((state) => state.board)
   const notify = useUiStore((state) => state.notify)
 
+  const blindChallenge = useBoardStore((state) => state.blindChallenge)
+  const setBlindChallenge = useBoardStore((state) => state.setBlindChallenge)
+
   const [other, setOther] = useState<Board | null>(null)
   const [link, setLink] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -64,6 +67,31 @@ export function CompareMode() {
             {t('compare.body')}
           </p>
         </div>
+
+        {blindChallenge ? (
+          <div className="animate-rise rounded-control border border-preview/50 bg-preview/8 p-3">
+            <p className="slug">{t('compare.challenge')}</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate">{t('compare.challengeHint')}</p>
+            <Button
+              variant="primary"
+              icon="compare"
+              className="mt-3"
+              onClick={() => {
+                void decodeBoard(blindChallenge)
+                  .then((sender) => {
+                    setOther(sender)
+                    setBlindChallenge(null)
+                    notify(t('compare.loaded'), 'good')
+                  })
+                  .catch((error: unknown) => {
+                    notify(t(errorKey(error, 'compare.badLink')), 'bad')
+                  })
+              }}
+            >
+              {t('compare.useChallenge')}
+            </Button>
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-3">
           <Field

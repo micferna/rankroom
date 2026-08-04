@@ -5,6 +5,7 @@ import { useT } from '~/i18n'
 import type { CrowdPlacement } from '~/lib/crowd'
 import { cx } from '~/lib/cx'
 import { readableInk, tint } from '~/lib/palette'
+import type { TierSort } from '~/lib/board'
 import type { Item, Tier } from '~/types'
 import { TierMenu } from './TierMenu'
 import { GhostTile, Tile } from './Tile'
@@ -21,6 +22,7 @@ interface TierRowProps {
   onRecolor: (color: string) => void
   onRemove: () => void
   onMove: (direction: -1 | 1) => void
+  onSort: (order: TierSort) => void
   canMoveUp: boolean
   canMoveDown: boolean
   canRemove: boolean
@@ -37,6 +39,7 @@ export function TierRow({
   onRecolor,
   onRemove,
   onMove,
+  onSort,
   canMoveUp,
   canMoveDown,
   canRemove,
@@ -104,6 +107,8 @@ export function TierRow({
             canRemove={canRemove}
             onMove={onMove}
             onRemove={onRemove}
+            onSort={onSort}
+            canSort={items.length > 1}
           />
         </div>
       </div>

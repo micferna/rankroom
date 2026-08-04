@@ -24,6 +24,14 @@ export interface CrowdConfig {
   openOnly: boolean
   /** Votes older than this stop counting, so a poll can move on. Ms; 0 = never. */
   windowMs: number
+  /** How much a subscriber's vote counts. 1 keeps everyone equal. */
+  subWeight: number
+  /** Only subscribers, VIPs and mods may vote. */
+  subsOnly: boolean
+  /** Hide a crowd placement until this many people have voted on it. */
+  minVotes: number
+  /** Logins whose votes are discarded. */
+  blocked: readonly string[]
 }
 
 export const DEFAULT_CROWD_CONFIG: CrowdConfig = {
@@ -31,6 +39,10 @@ export const DEFAULT_CROWD_CONFIG: CrowdConfig = {
   prefix: '!',
   openOnly: false,
   windowMs: 0,
+  subWeight: 1,
+  subsOnly: false,
+  minVotes: 1,
+  blocked: [],
 }
 
 export interface CrowdVote {
@@ -39,6 +51,33 @@ export interface CrowdVote {
   itemId: ItemId
   tierId: TierId
   at: number
+  /** How much this vote counts. Derived from the voter's roles at cast time. */
+  weight: number
+}
+
+export interface VoterRoles {
+  subscriber: boolean
+  moderator: boolean
+  vip: boolean
+  broadcaster: boolean
+}
+
+/**
+ * What one viewer's vote is worth.
+ *
+ * Weighting is a real ask the moment a poll goes on air — a channel wants its
+ * subscribers to carry more than a drive-by — but it is off by default, because
+ * a vote that silently counts double is worse than no weighting at all.
+ */
+export function voteWeight(roles: VoterRoles, config: CrowdConfig): number {
+  const privileged = roles.subscriber || roles.vip || roles.moderator || roles.broadcaster
+  if (config.subsOnly && !privileged) return 0
+  return privileged ? Math.max(1, config.subWeight) : 1
+}
+
+/** True when this viewer's votes are ignored entirely. */
+export function isBlocked(user: string, config: CrowdConfig): boolean {
+  return config.blocked.includes(user.toLowerCase())
 }
 
 /** Votes keyed by `${user}:${itemId}`, so a viewer can revise but not stuff. */
@@ -88,10 +127,12 @@ export interface ParseContext {
  * Deliberately strict: an unrecognised message is ignored rather than guessed
  * at, because a wrong vote is worse than a missed one when it is on screen.
  */
-export function parseVote(
-  text: string,
-  context: ParseContext,
-): Omit<CrowdVote, 'user' | 'display' | 'at'> | null {
+export interface ParsedVote {
+  itemId: ItemId
+  tierId: TierId
+}
+
+export function parseVote(text: string, context: ParseContext): ParsedVote | null {
   const { board, config, deckItemId } = context
   const trimmed = text.trim()
   if (!trimmed) return null
@@ -163,14 +204,15 @@ export function pruneVotes(
   return next
 }
 
-export function tallyVotes(votes: CrowdVotes, board: Board): CrowdTally {
+export function tallyVotes(votes: CrowdVotes, board: Board, minVotes = 1): CrowdTally {
   const perItem = new Map<ItemId, Map<TierId, number>>()
   const voters = new Set<string>()
 
   for (const vote of votes.values()) {
+    if (vote.weight <= 0) continue
     voters.add(vote.user)
     const tiers = perItem.get(vote.itemId) ?? new Map<TierId, number>()
-    tiers.set(vote.tierId, (tiers.get(vote.tierId) ?? 0) + 1)
+    tiers.set(vote.tierId, (tiers.get(vote.tierId) ?? 0) + vote.weight)
     perItem.set(vote.itemId, tiers)
   }
 
@@ -187,6 +229,9 @@ export function tallyVotes(votes: CrowdVotes, board: Board): CrowdTally {
     if (!winner) continue
 
     const total = breakdown.reduce((sum, entry) => sum + entry.votes, 0)
+    // Below the threshold a placement is noise, not a verdict, so it is not shown.
+    if (total < Math.max(1, minVotes)) continue
+
     placements.set(itemId, {
       itemId,
       tierId: winner.tierId,
