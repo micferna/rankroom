@@ -212,6 +212,38 @@ The cost is length. Images are re-encoded to ~384px WebP to keep tokens small, a
 share dialog can drop images entirely for a much shorter, names-only link. Past
 `SHARE_SIZE_WARNING` the UI says plainly that some chat clients will mangle the link.
 
+## The optional server
+
+Everything above works with no backend, and that is not a fallback — it is the default.
+`server/` exists for the three things a browser cannot do alone: an identity that survives
+a new device, a page other people can open, and an overlay OBS can follow live.
+
+**It is a build-time flag, not a runtime one.** `src/lib/api.ts` reads `VITE_API_URL` at
+import; when it is unset, `configured` is false, the account entry never enters the command
+palette, the dialog is never mounted, and no request is ever made. An e2e test asserts
+exactly that, because "still works without a backend" is a promise that stops being true
+quietly.
+
+**One origin, on purpose.** The server serves the built front end as well as the API, so a
+request from the page to the API is same-origin _by construction_ rather than by proxy
+configuration. That is what keeps the session cookie `SameSite=Lax` and keeps cross-site
+request forgery out of the threat model. Splitting them across two hosts forces
+`SameSite=None` and puts that surface back — which is precisely what the original
+GitHub Pages plan would have required.
+
+**The live overlay is why any of this exists.** An OBS Browser Source runs inside OBS's own
+browser, a separate process, so `BroadcastChannel` cannot reach it; the only way in was a
+URL with the board compressed into it, stale the moment a tile moved. `#/overlay/live/<key>`
+subscribes to a server-sent event stream instead. The key authenticates alone, because a
+Browser Source is a URL in a text field and cannot carry a session — so it is treated as a
+credential: stored hashed, scoped to one streamer's feed, and revoked by rotation.
+
+Routing is a table in `src/app/route.ts` with tests for the near-collisions, which is where
+the bugs would be. `#/b/` already meant "a whole board compressed into this fragment", so a
+server slug routed there would be handed to the decompressor and fail; published boards get
+`#/p/` instead. `#/overlay/live/<key>` has to be matched before `#/overlay/<token>`, or
+`live` is read as a share token.
+
 ## Security boundaries
 
 Share links, pasted JSON and stored records are all attacker-controlled, and they render
@@ -232,6 +264,12 @@ into the DOM and into exported images. `src/lib/schema.ts` is the single gate.
 On the outbound side, uploaded images are re-encoded before they are stored. That is a
 privacy measure as much as a size one: re-encoding drops EXIF, including GPS coordinates
 a creator would not expect to travel inside a share link.
+
+When a server is involved, **all of it happens again there**, in `server/src/board.rs`,
+against the same limits. The browser is a convenience, not a boundary: a request can be
+crafted by hand, so nothing the client checked is taken on trust. The reverse also holds —
+a board arriving _from_ the API goes through `parseBoard` like any file or link, because
+where bytes came from is not a reason to trust their shape.
 
 ## Offline
 
@@ -294,9 +332,21 @@ Two layers, deliberately:
   answer: pointer drag and drop, canvas exports, native `<dialog>`, and share links
   surviving a real navigation. Run on a desktop and a phone viewport.
 
+- **`server/tests/`** — three Rust suites: authorisation against a real Postgres, a pentest
+  suite that boots the whole deployed stack and attacks it over HTTP, and a property test
+  that puts a quarter of a million generated documents through the validator. Each pentest
+  is named for the attack it performs, so a red run reads as a vulnerability report.
+
 The split is a rule rather than a habit: if a test can be written without a browser, it is
 written without one. The browser suite exists for the handful of behaviours that genuinely
 need one — and every bug listed in the changelog under "drag and drop" is one of them.
+
+Some bugs sit outside all three. The rate limiter was configured a hundred times stricter
+than its own documentation, because `per_second` in `tower_governor` sets the interval
+between replenishments rather than the rate; the existing flood test passed regardless,
+since a limiter that is far too strict still refuses a flood. It took a browser hitting the
+real stack to surface it. The test that now pins it exhausts the burst and measures how
+fast the bucket refills — the property that actually differs.
 
 ## Accessibility
 
