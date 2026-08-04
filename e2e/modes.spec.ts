@@ -99,3 +99,24 @@ test.describe('sharing', () => {
     )
   })
 })
+
+test.describe('without a server', () => {
+  // The e2e suite runs the dev server with no VITE_API_URL, which is the
+  // default build. Nothing about accounts may appear in it: the promise is that
+  // a build without a backend is the app exactly as it was before one existed.
+  test('the app offers nothing that needs one', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: /browse templates/i })).toBeVisible()
+
+    await page.keyboard.press('Control+k')
+    await page.getByRole('dialog').waitFor()
+    await page.keyboard.type('account')
+
+    await expect(page.getByRole('option', { name: /account|compte/i })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    // And the account route falls back to the studio rather than a dead screen.
+    await page.goto('/#/account')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+})

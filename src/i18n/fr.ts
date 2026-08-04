@@ -467,4 +467,82 @@ export const fr: Record<keyof typeof en, string> = {
   'error.replay.empty': 'Rien à rejouer — commence par placer quelques tuiles.',
   'error.replay.codec': 'Ce navigateur ne sait pas enregistrer de vidéo.',
   'error.replay.stopped': 'L’enregistrement s’est arrêté de façon inattendue.',
+
+  'account.title': 'Ton compte',
+  'account.hint':
+    'Connecte-toi pour garder tes tableaux d’un appareil à l’autre, publier une page et piloter un overlay en direct.',
+  'account.open': 'Compte',
+  'account.signIn': 'Se connecter avec Twitch',
+  'account.signInHint':
+    'Aucune permission demandée — RankRoom demande à Twitch qui tu es, rien d’autre. Il ne peut ni lire ton tchat ni toucher à ton stream.',
+  'account.signOut': 'Se déconnecter',
+  'account.signedInAs': 'Connecté en tant que {name}',
+  'account.checking': 'Vérification…',
+  'account.unavailable':
+    'Le serveur est injoignable pour le moment. Tout le reste continue de marcher.',
+  'account.noServer':
+    'Cette version n’a pas de serveur. Les tableaux restent dans ce navigateur, c’est le fonctionnement par défaut.',
+
+  'account.boards': 'Tableaux sur le serveur',
+  'account.boardsEmpty': 'Rien encore enregistré sur le serveur.',
+  'account.save': 'Envoyer au serveur',
+  'account.update': 'Mettre à jour',
+  'account.saved': 'Enregistré sur ton compte.',
+  'account.updated': 'Mis à jour.',
+  'account.open.board': 'Ouvrir',
+  'account.delete': 'Supprimer',
+  'account.deleted': 'Supprimé de ton compte.',
+  'account.confirmDelete': 'Supprimer définitivement ?',
+  'account.cancel': 'Annuler',
+  'account.public': 'Public',
+  'account.private': 'Privé',
+  'account.makePublic': 'Publier',
+  'account.makePrivate': 'Dépublier',
+  'account.publicHint':
+    'Un tableau publié obtient une page que tout le monde peut ouvrir. Dépublie et le lien cesse de fonctionner.',
+  'account.copyLink': 'Copier le lien',
+  'account.copied': 'Lien copié.',
+  'account.yourPage': 'Ta page',
+
+  'account.overlay': 'Overlay en direct',
+  'account.overlayHint':
+    'Colle ceci une fois dans une Source navigateur OBS. Elle suit ton tableau pendant tout le live — plus rien à recoller quand tu déplaces une tuile.',
+  'account.overlayCreate': 'Créer le lien d’overlay',
+  'account.overlayRotate': 'Nouveau lien',
+  'account.overlayRotated': 'Nouveau lien d’overlay créé. Le précédent ne marche plus.',
+  'account.overlayWarn':
+    'Traite ce lien comme un mot de passe : qui le détient peut regarder ton tableau évoluer, y compris les tableaux privés.',
+
+  'account.danger': 'Supprimer ton compte',
+  'account.dangerHint':
+    'Efface ton compte, tous tes tableaux sur le serveur et toutes tes sessions. Immédiatement, sans retour possible. Les tableaux de ce navigateur ne sont pas touchés.',
+  'account.dangerConfirm': 'Tout supprimer',
+  'account.dangerDone': 'Ton compte et tout ce qu’il contenait ont été supprimés.',
+
+  'account.errorNoServer': 'Cette version n’a pas de serveur configuré.',
+  'account.errorOffline': 'Impossible de joindre le serveur.',
+  'account.errorSignedOut': 'Tu es déconnecté.',
+  'account.errorMissing': 'Introuvable.',
+  'account.errorQuota': 'Tu as atteint la limite de tableaux sur ce serveur.',
+  'account.errorStorage':
+    'Plus d’espace sur ton compte. Supprime un tableau pour faire de la place.',
+  'account.errorTooLarge': 'Ce tableau est trop lourd pour le serveur.',
+  'account.errorBusy': 'Trop de requêtes. Patiente un instant.',
+  'account.errorServer': 'Le serveur a rencontré un problème.',
+  'account.errorRequest': 'Le serveur a refusé.',
+  'account.errorNoSignIn': 'La connexion n’est pas configurée sur ce serveur.',
+
+  'profile.title': '{name}',
+  'profile.boards_one': '{count} tableau public',
+  'profile.boards': '{count} tableaux publics',
+  'profile.empty': 'Aucun tableau public pour l’instant.',
+  'profile.back': 'Ouvrir le studio',
+  'profile.missing': 'Cette page n’existe pas.',
+  'profile.loading': 'Chargement…',
+  'profile.openBoard': 'Ouvrir ce tableau',
+
+  'overlay.live.waiting': 'En attente du tableau…',
+  'overlay.live.lost': 'Reconnexion…',
+  'overlay.live.badKey':
+    'Ce lien d’overlay n’est plus valide. Crées-en un nouveau depuis ton compte.',
 }

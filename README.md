@@ -139,6 +139,10 @@ takes**: the items you are furthest apart on. That list is the video.
   server, so not even the host it is served from sees what you ranked. The link keeps
   working even if that host disappears.
 - **Works offline.** A service worker precaches the app, the fonts and the icons.
+- **An account, if you host the server.** Sign in with Twitch, keep boards across
+  devices, publish a page at `#/u/<your-channel>`, and drive an **OBS overlay that
+  follows your board live** — paste one URL once and it keeps up for the whole show.
+  Without a server none of this appears and nothing else changes.
 - **26 built-in templates** across seven categories, searchable by name _or_ by an item
   inside them — typing "bloodborne" finds the soulslike board.
 - **English and French**, detected from your browser and switchable from the header.

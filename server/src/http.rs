@@ -100,9 +100,19 @@ pub fn app(state: AppState) -> Result<Router> {
     // client would rate-limit the whole site. The header is attacker-controlled,
     // which is why the deployment notes are emphatic that the proxy must
     // *overwrite* it rather than append to it.
+    //
+    // `period` rather than `per_second`, which does not mean what its name
+    // suggests: it sets the *interval between replenishments*, so passing 10
+    // yields one request every ten seconds — a hundred times stricter than the
+    // ten-per-second the setting advertises. That was the configuration until a
+    // browser hitting the real stack ran into 429s and nothing else explained
+    // them. The tests could not have caught it: a limiter that is too strict
+    // still rate-limits a flood.
+    let replenish = Duration::from_nanos(1_000_000_000 / config.rate_limit_per_second.max(1));
+
     let governor = Arc::new(
         GovernorConfigBuilder::default()
-            .per_second(config.rate_limit_per_second)
+            .period(replenish)
             .burst_size(config.rate_limit_burst)
             .key_extractor(SmartIpKeyExtractor)
             .finish()

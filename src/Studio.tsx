@@ -12,6 +12,7 @@ import { ReplayMode } from '~/features/replay/ReplayMode'
 import { HelpDialog } from '~/features/settings/HelpDialog'
 import { PaletteDialog } from '~/features/settings/PaletteDialog'
 import { ShareDialog } from '~/features/share/ShareDialog'
+import { AccountDialog } from '~/features/account/AccountDialog'
 import { ShelfDialog } from '~/features/shelf/ShelfDialog'
 import { StreamMode } from '~/features/stream/StreamMode'
 import { TemplateGallery } from '~/features/templates/TemplateGallery'
@@ -20,6 +21,7 @@ import type { MessageKey } from '~/i18n/en'
 import { useHotkeys } from '~/hooks/useHotkeys'
 import { useImageImport } from '~/hooks/useImageImport'
 import { useSession } from '~/hooks/useSession'
+import * as api from '~/lib/api'
 import { cx } from '~/lib/cx'
 import { readBoardFile } from '~/lib/boardFile'
 import { errorKey } from '~/lib/errors'
@@ -31,9 +33,13 @@ import { useUiStore, type Mode } from '~/store/uiStore'
 
 interface StudioProps {
   shareToken: string | null
+  /** A published board to open on arrival, from `#/p/<slug>`. */
+  publishedSlug?: string | null
+  /** Opens the account panel straight away, for the sign-in return trip. */
+  openAccount?: boolean
 }
 
-export function Studio({ shareToken }: StudioProps) {
+export function Studio({ shareToken, publishedSlug = null, openAccount = false }: StudioProps) {
   const t = useT()
   const board = useBoardStore((state) => state.board)
   const moves = useBoardStore((state) => state.moves)
@@ -61,7 +67,11 @@ export function Studio({ shareToken }: StudioProps) {
   const notify = useUiStore((state) => state.notify)
 
   const { importFiles, addTextTiles, pending } = useImageImport()
-  useSession(shareToken)
+
+  useEffect(() => {
+    if (openAccount && api.configured) openDialog('account')
+  }, [openAccount, openDialog])
+  useSession(shareToken, publishedSlug)
 
   // A set, not a single id: past ~40 tiles, moving things one at a time is the
   // slowest part of using the app.
@@ -472,6 +482,7 @@ export function Studio({ shareToken }: StudioProps) {
       <TemplateGallery open={dialog === 'templates'} onClose={closeDialog} />
       <PaletteDialog open={dialog === 'palette'} onClose={closeDialog} />
       <HelpDialog open={dialog === 'help'} onClose={closeDialog} />
+      {api.configured ? <AccountDialog open={dialog === 'account'} onClose={closeDialog} /> : null}
       <Toasts />
     </div>
   )

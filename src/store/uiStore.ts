@@ -7,7 +7,8 @@ import type { ThemeName } from '~/types'
 /** The six things the app can be doing. Only one is active at a time. */
 export type Mode = 'edit' | 'duel' | 'stream' | 'crowd' | 'replay' | 'compare'
 
-export type DialogName = 'export' | 'share' | 'shelf' | 'palette' | 'help' | 'templates' | null
+export type DialogName =
+  'export' | 'share' | 'shelf' | 'palette' | 'help' | 'templates' | 'account' | null
 
 export interface Toast {
   id: string

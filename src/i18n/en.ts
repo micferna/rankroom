@@ -465,6 +465,82 @@ export const en = {
   'error.replay.empty': 'Nothing to replay yet — make a few placements first.',
   'error.replay.codec': 'This browser cannot record video.',
   'error.replay.stopped': 'Recording stopped unexpectedly.',
+
+  'account.title': 'Your account',
+  'account.hint':
+    'Sign in to keep boards across devices, publish a page, and drive a live overlay.',
+  'account.open': 'Account',
+  'account.signIn': 'Sign in with Twitch',
+  'account.signInHint':
+    'No scopes requested — RankRoom asks Twitch who you are and nothing else. It cannot read your chat or touch your stream.',
+  'account.signOut': 'Sign out',
+  'account.signedInAs': 'Signed in as {name}',
+  'account.checking': 'Checking…',
+  'account.unavailable': 'The server is not reachable right now. Everything else keeps working.',
+  'account.noServer':
+    'This build has no server. Boards stay in this browser, which is the default.',
+
+  'account.boards': 'Boards on the server',
+  'account.boardsEmpty': 'Nothing saved to the server yet.',
+  'account.save': 'Save to server',
+  'account.update': 'Update on server',
+  'account.saved': 'Saved to your account.',
+  'account.updated': 'Updated.',
+  'account.open.board': 'Open',
+  'account.delete': 'Delete',
+  'account.deleted': 'Deleted from your account.',
+  'account.confirmDelete': 'Delete for good?',
+  'account.cancel': 'Cancel',
+  'account.public': 'Public',
+  'account.private': 'Private',
+  'account.makePublic': 'Publish',
+  'account.makePrivate': 'Unpublish',
+  'account.publicHint':
+    'A published board gets a page anyone can open. Unpublish and the link stops working.',
+  'account.copyLink': 'Copy link',
+  'account.copied': 'Link copied.',
+  'account.yourPage': 'Your page',
+
+  'account.overlay': 'Live overlay',
+  'account.overlayHint':
+    'Paste this into an OBS Browser Source once. It follows your board for the rest of the show — no re-pasting when you move a tile.',
+  'account.overlayCreate': 'Create overlay link',
+  'account.overlayRotate': 'New link',
+  'account.overlayRotated': 'New overlay link created. The previous one stopped working.',
+  'account.overlayWarn':
+    'Treat this link as a password: anyone holding it can watch your board change, including private ones.',
+
+  'account.danger': 'Delete your account',
+  'account.dangerHint':
+    'Removes your account, every board on the server, and every session. Immediately, with no way back. Boards in this browser are untouched.',
+  'account.dangerConfirm': 'Delete everything',
+  'account.dangerDone': 'Your account and everything on the server are gone.',
+
+  'account.errorNoServer': 'This build has no server configured.',
+  'account.errorOffline': 'Could not reach the server.',
+  'account.errorSignedOut': 'You are signed out.',
+  'account.errorMissing': 'Not found.',
+  'account.errorQuota': 'You have reached the board limit on this server.',
+  'account.errorStorage': 'No storage left on your account. Delete a board to make room.',
+  'account.errorTooLarge': 'This board is too large for the server.',
+  'account.errorBusy': 'Too many requests. Wait a moment.',
+  'account.errorServer': 'The server had a problem.',
+  'account.errorRequest': 'The server refused that.',
+  'account.errorNoSignIn': 'Sign-in is not configured on this server.',
+
+  'profile.title': '{name}',
+  'profile.boards_one': '{count} public board',
+  'profile.boards': '{count} public boards',
+  'profile.empty': 'No public boards yet.',
+  'profile.back': 'Open the studio',
+  'profile.missing': 'No such page.',
+  'profile.loading': 'Loading…',
+  'profile.openBoard': 'Open this board',
+
+  'overlay.live.waiting': 'Waiting for the board…',
+  'overlay.live.lost': 'Reconnecting…',
+  'overlay.live.badKey':
+    'This overlay link is not valid any more. Create a new one from your account.',
 } as const
 
 export type MessageKey = keyof typeof en

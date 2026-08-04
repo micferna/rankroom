@@ -61,16 +61,22 @@ URL to exactly `<PUBLIC_URL>/api/auth/twitch/callback`.
 No scopes are requested. The server asks Twitch who you are and nothing else —
 it cannot read your chat, change your stream, or post anywhere.
 
-### Point the front end at it
+### The front end
 
-Build the app with `VITE_API_URL` set:
+The stack image serves it from this same origin, with `VITE_API_URL=/api` baked
+in at build time — that is what keeps the session cookie `SameSite=Lax` and
+cross-site request forgery out of the threat model.
+
+To build the app separately, point it at the API's base URL **including the
+prefix**:
 
 ```bash
-VITE_API_URL=https://api.example.com npm run build
+VITE_API_URL=https://rankroom.example.com/api npm run build
 ```
 
-Leave it unset and the front end has no idea this server exists, which is the
-default and stays fully functional.
+Leave it unset and the front end has no idea this server exists: no account
+panel, no sign-in, no live overlay, and every other feature exactly as it was.
+That is the default, and it stays fully functional.
 
 ## What it stores
 
@@ -134,7 +140,7 @@ The suite is in three parts, and all of it runs on every push:
 | Suite                      | What it does                                          |
 | -------------------------- | ----------------------------------------------------- |
 | `tests/authorisation.rs`   | 15 tests against a real Postgres, at the data layer   |
-| `tests/pentest.rs`         | 24 attacks over real HTTP against the **whole** stack |
+| `tests/pentest.rs`         | 28 attacks over real HTTP against the **whole** stack |
 | `tests/fuzz_validation.rs` | 250 000 generated documents through the validator     |
 
 `pentest.rs` boots the server exactly as it is deployed — CORS, rate limiter,

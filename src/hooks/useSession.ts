@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { clearHash } from '~/app/route'
+import * as api from '~/lib/api'
 import { useT } from '~/i18n'
 import { errorKey } from '~/lib/errors'
 import { decodeBoard, isBlindBoard, withoutBlindMarker } from '~/lib/share'
@@ -12,12 +13,20 @@ const AUTOSAVE_DEBOUNCE_MS = 900
 /**
  * Restores the session, then keeps it saved.
  *
- * Precedence is deliberate: a share token in the URL always wins over the
- * autosave, because someone who opened a link expects to see that board — but
- * the autosave is only overwritten once they change something, so the previous
+ * Precedence is deliberate: a link in the URL always wins over the autosave,
+ * because someone who opened a link expects to see that board — but the
+ * autosave is only overwritten once they change something, so the previous
  * session is still recoverable until then.
+ *
+ * A published slug is fetched from the server; a share token carries its board
+ * in the fragment and needs nothing but this browser. Either way what arrives
+ * goes through the same parser, because where bytes came from is not a reason
+ * to trust their shape.
  */
-export function useSession(shareToken: string | null): { restoring: boolean } {
+export function useSession(
+  shareToken: string | null,
+  publishedSlug: string | null = null,
+): { restoring: boolean } {
   const t = useT()
   const replaceBoard = useBoardStore((state) => state.replaceBoard)
   const setBlindChallenge = useBoardStore((state) => state.setBlindChallenge)
@@ -30,6 +39,17 @@ export function useSession(shareToken: string | null): { restoring: boolean } {
     restored.current = true
 
     const run = async () => {
+      if (publishedSlug) {
+        try {
+          const opened = await api.publicBoard(publishedSlug)
+          replaceBoard(opened.board)
+          notify(t('session.shareOpened'), 'good')
+          return
+        } catch (error) {
+          notify(t(errorKey(error, 'profile.missing')), 'bad')
+        }
+      }
+
       if (shareToken) {
         try {
           const opened = await decodeBoard(shareToken)
@@ -66,7 +86,7 @@ export function useSession(shareToken: string | null): { restoring: boolean } {
     void run().finally(() => {
       setRestoring(false)
     })
-  }, [shareToken, replaceBoard, setBlindChallenge, notify, t])
+  }, [shareToken, publishedSlug, replaceBoard, setBlindChallenge, notify, t])
 
   // Autosave: subscribe outside React so typing does not re-render on every keystroke.
   useEffect(() => {
