@@ -6,6 +6,11 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      # typescript-eslint pins `typescript <6.1`, so a major bump breaks linting
+      # before the toolchain can use it. Revisit when they widen the range.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     groups:
       # One PR per ecosystem keeps the noise down and the review meaningful.
       react:

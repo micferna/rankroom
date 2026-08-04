@@ -66,6 +66,12 @@ export function Studio({ shareToken }: StudioProps) {
     document.documentElement.dataset.theme = theme
   }, [theme])
 
+  useEffect(() => {
+    // Set on mount too, not just on change: the initial locale can come from the
+    // browser, and `lang` is what assistive tech reads the page with.
+    document.documentElement.lang = locale
+  }, [locale])
+
   // Drops and pastes work anywhere on the page, not just over a drop zone —
   // a creator dragging 40 covers should not have to aim.
   useEffect(() => {

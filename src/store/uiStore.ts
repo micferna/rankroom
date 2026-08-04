@@ -74,7 +74,6 @@ export const useUiStore = create<UiStore>()((set, get) => ({
   },
   setLocale: (locale) => {
     preferences.write('locale', locale)
-    document.documentElement.lang = locale
     set({ locale })
   },
   setLive: (live) => {
