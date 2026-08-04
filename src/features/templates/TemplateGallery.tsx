@@ -114,7 +114,9 @@ export function TemplateGallery({ open, onClose }: TemplateGalleryProps) {
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
             {results.map((template) => (
-              <li key={template.id}>
+              // min-w-0: a grid item defaults to min-width:auto, so the item
+              // preview below would otherwise widen the track past the dialog.
+              <li key={template.id} className="min-w-0">
                 <TemplateCard
                   template={template}
                   onUse={() => {
@@ -150,7 +152,7 @@ function TemplateCard({ template, onUse, onAppend }: TemplateCardProps) {
   const ladder = template.tiers?.[locale]
 
   return (
-    <article className="flex h-full flex-col gap-2 rounded-control border border-edge p-2.5">
+    <article className="flex h-full min-w-0 flex-col gap-2 rounded-control border border-edge p-2.5">
       <div className="flex items-start gap-2">
         {/* The palette strip doubles as the preview of the ladder this template brings. */}
         <span className="mt-0.5 flex shrink-0 overflow-hidden rounded-[3px]" aria-hidden>
@@ -172,12 +174,15 @@ function TemplateCard({ template, onUse, onAppend }: TemplateCardProps) {
       </div>
 
       {ladder ? (
-        <p className="type-mono truncate text-[10px] text-tungsten" title={ladder.join(' · ')}>
+        <p
+          className="type-mono min-w-0 truncate text-[10px] text-tungsten"
+          title={ladder.join(' · ')}
+        >
           {ladder.join(' · ')}
         </p>
       ) : null}
 
-      <p className="line-clamp-2 text-[11px] text-slate/80">
+      <p className="line-clamp-2 text-[11px] break-words text-slate/80">
         {template.items.slice(0, 8).join(' · ')}
       </p>
 
