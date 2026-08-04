@@ -33,6 +33,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Checkout otherwise leaves the job token in .git/config, where
+          # anything that archives the workspace carries it out with it.
+          # Nothing here pushes, so nothing here needs it.
+          persist-credentials: false
 
       # A tag is a pointer someone else can move. `actions/checkout@v7` runs
       # whatever that tag names at the moment the job starts, which is how the
@@ -60,7 +65,7 @@ jobs:
           if unpinned=$(grep -rnE '^[[:space:]]*(FROM|image:)[[:space:]]' \
               Dockerfile compose.yaml \
               | grep -vE 'sha256:[0-9a-f]{64}' \
-              | grep -vE 'rankroom-(web|server):latest'); then
+              | grep -vE 'image: rankroom:latest'); then
             echo "::error::These images are not pinned by digest:"
             echo "$unpinned"
             exit 1
@@ -74,6 +79,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Checkout otherwise leaves the job token in .git/config, where
+          # anything that archives the workspace carries it out with it.
+          # Nothing here pushes, so nothing here needs it.
+          persist-credentials: false
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -95,6 +105,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Checkout otherwise leaves the job token in .git/config, where
+          # anything that archives the workspace carries it out with it.
+          # Nothing here pushes, so nothing here needs it.
+          persist-credentials: false
 
       # Dockerfile linting: pinned versions, no `latest`, no root, no secrets in
       # ARG, layers that do what they look like they do.
@@ -144,6 +159,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          # Checkout otherwise leaves the job token in .git/config, where
+          # anything that archives the workspace carries it out with it.
+          # Nothing here pushes, so nothing here needs it.
+          persist-credentials: false
           # Secret scanning is worth little on one commit: a credential that was
           # committed and then removed is still in the history, and still valid.
           fetch-depth: 0
@@ -172,6 +191,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Checkout otherwise leaves the job token in .git/config, where
+          # anything that archives the workspace carries it out with it.
+          # Nothing here pushes, so nothing here needs it.
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
