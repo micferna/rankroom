@@ -105,23 +105,59 @@ Concretely:
   response does not confirm the id exists.
 - **Session tokens are stored hashed.** A database leak yields no usable
   sessions.
-- **OAuth uses PKCE**, and each handshake state is single-use — deleted and
-  returned in one statement, so a replay cannot succeed.
+- **OAuth uses PKCE**, each handshake state is single-use — deleted and returned
+  in one statement — and each handshake is **bound to the browser that started
+  it** by a second secret held only in a cookie. Without that binding, anyone
+  holding a `state` could finish someone else's sign-in.
+- **Session cookies carry the `__Host-` prefix**, so a sibling subdomain cannot
+  set a cookie of the same name and shadow the session.
 - **CORS is an explicit allow-list** and credentials only ever go to it.
-- **Rate limiting** per IP, body size limits, request timeouts, and
-  `nosniff` / `DENY` / `no-referrer` response headers.
+- **Quotas are enforced transactionally** — board count and total stored bytes,
+  both behind a lock on the owner's row, so concurrent requests cannot race
+  through them.
+- **Rate limiting per client**, body size limits, request timeouts, and
+  `nosniff` / `DENY` / `no-referrer` / `no-store` / `CSP` response headers.
 - `#![forbid(unsafe_code)]`, `clippy::pedantic` as an error, `cargo deny` in CI.
+
+> **Reverse proxy requirement.** Rate limiting keys on `X-Forwarded-For` when it
+> is present, because behind a proxy every request otherwise shares one bucket
+> and a single abusive client throttles everyone. Your proxy **must overwrite**
+> that header, never append to it. In nginx that means
+> `proxy_set_header X-Forwarded-For $remote_addr;` — *not*
+> `$proxy_add_x_forwarded_for`, which keeps whatever the caller sent. Caddy and
+> Traefik overwrite by default.
 
 ### What has and has not been audited
 
-The test suite includes **fourteen authorisation tests against a real
-Postgres** — each one describes something a hostile client would try: reading,
-updating and deleting someone else's board, reusing an expired or revoked
-session, replaying an OAuth handshake, and using a rotated overlay key.
+The suite is in three parts, and all of it runs on every push:
 
-This is **not** a penetration test, and nothing here should be read as one. No
-third party has assessed this code. If you run it for anyone but yourself,
-commission a real audit; the threat model above is written so an auditor has
+| Suite | What it does |
+| --- | --- |
+| `tests/authorisation.rs` | 15 tests against a real Postgres, at the data layer |
+| `tests/pentest.rs` | 24 attacks over real HTTP against the **whole** stack |
+| `tests/fuzz_validation.rs` | 250 000 generated documents through the validator |
+
+`pentest.rs` boots the server exactly as it is deployed — CORS, rate limiter,
+body limit, headers and all — and then attacks it: anonymous access to every
+protected route, forged and expired and revoked sessions, reading and writing
+and deleting another account's board, SQL injection and path traversal and CRLF
+in every path parameter, `javascript:` and `data:text/html` in tile images,
+nesting bombs, oversized bodies, CORS origins that should be refused, overlay
+key guessing and replay-after-rotation, and twenty concurrent requests racing a
+quota. **Each test is named for the attack it performs, so a failure reads as a
+vulnerability report.**
+
+Running it for the first time found four real defects, since fixed and each now
+pinned by the test that caught it: login CSRF through an unbound OAuth
+handshake, a quota that twenty concurrent requests drove straight through, a
+session cookie a sibling subdomain could shadow, and a NUL byte in a URL that
+became a 500. [`AUDIT.md`](AUDIT.md) is the full write-up.
+
+This is **self-assessment, not an independent audit.** The same person wrote the
+server and the attacks against it, and that shares its blind spots — a test
+suite cannot find a threat its author did not imagine. No third party has
+assessed this code. If you run it for anyone but yourself, commission a real
+audit; `AUDIT.md` and the threat model above are written so an auditor has
 somewhere to start.
 
 ### Reporting a problem
@@ -138,13 +174,24 @@ export DATABASE_URL=postgres://rankroom:dev@127.0.0.1:5432/rankroom
 export TEST_DATABASE_URL=$DATABASE_URL
 
 cargo run                                    # migrations run on startup
-cargo test                                   # unit tests, plus authorisation tests
+cargo test                                   # everything
+cargo test --test pentest                    # just the attacks
 cargo clippy --all-targets -- -D warnings
 cargo deny check
 ```
 
-The authorisation tests skip themselves when `TEST_DATABASE_URL` is unset, so
-`cargo test` works without Postgres — it just proves less.
+The authorisation and pentest suites skip themselves when `TEST_DATABASE_URL` is
+unset, so `cargo test` works without Postgres — it just proves less.
+
+The fuzzer needs nothing and always runs. For a longer soak:
+
+```bash
+FUZZ_ITERATIONS=2000000 FUZZ_SEED=42 cargo test --release --test fuzz_validation
+```
+
+The seed is fixed by default so a failure is reproducible. Vary it deliberately;
+do not wire a random seed into CI, or the suite starts failing on unrelated
+pull requests.
 
 ## Licence
 

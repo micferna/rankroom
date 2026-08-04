@@ -11,9 +11,43 @@ use uuid::Uuid;
 
 use crate::{db::User, error::ApiError, AppState};
 
-pub const SESSION_COOKIE: &str = "rankroom_session";
+/// The session cookie, and the same cookie without the prefix for local HTTP.
+///
+/// `__Host-` is the browser-enforced version of "this cookie belongs to exactly
+/// this host": it may carry no `Domain`, so a sibling subdomain — or anyone who
+/// takes one over — cannot set a cookie of the same name and shadow the real
+/// session. Browsers refuse a `__Host-` cookie that is not `Secure`, so plain
+/// HTTP development falls back to the bare name and nothing else changes.
+pub const SESSION_COOKIE: &str = "__Host-rankroom_session";
+pub const SESSION_COOKIE_INSECURE: &str = "rankroom_session";
+
+/// Ties an OAuth handshake to one browser. Short-lived: it is only needed for
+/// the round trip through Twitch.
+pub const OAUTH_COOKIE: &str = "__Host-rankroom_oauth";
+pub const OAUTH_COOKIE_INSECURE: &str = "rankroom_oauth";
+
 /// The handshake is a round trip through Twitch; ten minutes is generous.
 const OAUTH_STATE_TTL_MINUTES: i64 = 10;
+
+/// The session cookie's name for this deployment.
+#[must_use]
+pub const fn session_cookie_name(secure: bool) -> &'static str {
+    if secure {
+        SESSION_COOKIE
+    } else {
+        SESSION_COOKIE_INSECURE
+    }
+}
+
+/// The handshake cookie's name for this deployment.
+#[must_use]
+pub const fn oauth_cookie_name(secure: bool) -> &'static str {
+    if secure {
+        OAUTH_COOKIE
+    } else {
+        OAUTH_COOKIE_INSECURE
+    }
+}
 
 /// 256 bits from the OS generator, URL-safe.
 fn random_token() -> String {
@@ -82,29 +116,53 @@ pub async fn user_for_token(pool: &PgPool, token: &str) -> sqlx::Result<Option<U
     .await
 }
 
-/// Stores a pending OAuth handshake, returning the opaque `state` to send out.
-pub async fn begin_oauth(pool: &PgPool, verifier: &str) -> sqlx::Result<String> {
+/// A handshake in flight: the `state` that travels through Twitch, and the
+/// `binding` that stays in the browser as a cookie.
+pub struct Handshake {
+    pub state: String,
+    pub binding: String,
+}
+
+/// Stores a pending OAuth handshake.
+///
+/// Two secrets, deliberately: `state` goes out through Twitch in a URL, and
+/// `binding` never leaves the browser. Requiring both at the callback is what
+/// makes a handshake finishable only by the browser that started it — `state`
+/// alone travels through logs, referrers and history, and anyone holding it
+/// could otherwise complete someone else's sign-in.
+pub async fn begin_oauth(pool: &PgPool, verifier: &str) -> sqlx::Result<Handshake> {
     let state = random_token();
+    let binding = random_token();
 
     sqlx::query(
-        "insert into oauth_states (state_hash, pkce_verifier, expires_at) values ($1, $2, $3)",
+        "insert into oauth_states (state_hash, pkce_verifier, binding_hash, expires_at) values ($1, $2, $3, $4)",
     )
     .bind(hash(&state))
     .bind(verifier)
+    .bind(hash(&binding))
     .bind(OffsetDateTime::now_utc() + Duration::minutes(OAUTH_STATE_TTL_MINUTES))
     .execute(pool)
     .await?;
 
-    Ok(state)
+    Ok(Handshake { state, binding })
 }
 
-/// Consumes a handshake. Deleting and returning in one statement makes a state
-/// single-use even if two callbacks arrive at once.
-pub async fn take_oauth(pool: &PgPool, state: &str) -> sqlx::Result<Option<String>> {
+/// Consumes a handshake, but only for the browser that owns it.
+///
+/// Deleting and returning in one statement makes a state single-use even if two
+/// callbacks arrive at once, and matching `binding_hash` in the same `where`
+/// means a caller without the cookie cannot consume — or even invalidate —
+/// somebody else's pending sign-in.
+pub async fn take_oauth(pool: &PgPool, state: &str, binding: &str) -> sqlx::Result<Option<String>> {
     sqlx::query_scalar::<_, String>(
-        "delete from oauth_states where state_hash = $1 and expires_at > now() returning pkce_verifier",
+        r"
+        delete from oauth_states
+        where state_hash = $1 and binding_hash = $2 and expires_at > now()
+        returning pkce_verifier
+        ",
     )
     .bind(hash(state))
+    .bind(hash(binding))
     .fetch_optional(pool)
     .await
 }
@@ -166,30 +224,13 @@ impl FromRequestParts<AppState> for Auth {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let token = cookie_value(parts, SESSION_COOKIE).ok_or(ApiError::Unauthorised)?;
+        let name = session_cookie_name(!state.config.insecure_cookies);
+        let token = cookie_value(parts, name).ok_or(ApiError::Unauthorised)?;
 
         user_for_token(&state.pool, token)
             .await?
             .map(Auth)
             .ok_or(ApiError::Unauthorised)
-    }
-}
-
-/// Like [`Auth`] but optional, for endpoints that behave differently when
-/// someone is signed in without requiring it.
-pub struct MaybeAuth(pub Option<User>);
-
-impl FromRequestParts<AppState> for MaybeAuth {
-    type Rejection = ApiError;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        match cookie_value(parts, SESSION_COOKIE) {
-            None => Ok(Self(None)),
-            Some(token) => Ok(Self(user_for_token(&state.pool, token).await?)),
-        }
     }
 }
 

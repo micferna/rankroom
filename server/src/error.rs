@@ -10,13 +10,14 @@ use serde::Serialize;
 /// Variants map to a status *and* a stable machine-readable code, so the client
 /// can react without parsing prose. Internal failures deliberately carry no
 /// detail across the wire — the detail goes to the log, where it belongs.
+///
+/// There is no `Forbidden`: a resource that is not yours is [`Self::NotFound`],
+/// because 403 and 404 differ in exactly the way that tells an attacker which
+/// ids exist.
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     #[error("authentication required")]
     Unauthorised,
-
-    #[error("not allowed")]
-    Forbidden,
 
     #[error("not found")]
     NotFound,
@@ -26,6 +27,9 @@ pub enum ApiError {
 
     #[error("too many boards")]
     QuotaExceeded,
+
+    #[error("no storage left on this account")]
+    StorageExceeded,
 
     #[error("sign-in is not configured on this server")]
     SignInUnavailable,
@@ -47,10 +51,10 @@ impl ApiError {
     fn parts(&self) -> (StatusCode, &'static str) {
         match self {
             Self::Unauthorised => (StatusCode::UNAUTHORIZED, "unauthorised"),
-            Self::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             Self::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             Self::QuotaExceeded => (StatusCode::CONFLICT, "quota_exceeded"),
+            Self::StorageExceeded => (StatusCode::CONFLICT, "storage_exceeded"),
             Self::SignInUnavailable => (StatusCode::SERVICE_UNAVAILABLE, "sign_in_unavailable"),
             Self::Database(_) | Self::Other(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }

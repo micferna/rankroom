@@ -20,8 +20,16 @@ pub mod limits {
     pub const ITEMS: usize = 400;
     /// ~200 KB of base64 per tile, matching the client.
     pub const IMAGE: usize = 280_000;
-    /// A whole board, serialised. Generous for 400 tiles with images.
-    pub const DOCUMENT_BYTES: usize = 96 * 1024 * 1024;
+    /// A whole board, serialised.
+    ///
+    /// Four hundred tiles at the per-image cap would be 112 MB, but a 320px WebP
+    /// is 10–30 KB in practice, so that ceiling describes nothing anyone builds
+    /// while forcing the server to buffer 112 MB per request. 32 MB still holds
+    /// four hundred tiles at 80 KB each — generous — and cuts the worst case a
+    /// single request can cost by three and a half times. The browser gets the
+    /// matching check when the front end starts uploading; until then this is
+    /// the only place it is enforced, which is the right place for it to be.
+    pub const DOCUMENT_BYTES: usize = 32 * 1024 * 1024;
     pub const BOARDS_PER_USER: i64 = 200;
 }
 
@@ -140,7 +148,12 @@ pub fn validate(document: &Value) -> Result<usize, BoardError> {
 }
 
 /// What a caller sends when saving.
+///
+/// `deny_unknown_fields` on purpose: `is_public` has a default, so a client that
+/// misspelled it would silently get a private board and never learn why. A
+/// privacy flag deserves a loud failure, not a quiet fallback.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SaveBoard {
     pub title: String,
     #[serde(default)]

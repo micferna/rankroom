@@ -11,7 +11,6 @@ publish = false
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
-tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "limit", "trace", "timeout", "set-header"] }
 tower_governor = "0.7"
 futures-util = { version = "0.3", default-features = false }
@@ -37,7 +36,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 rand = "0.9"
 base64 = "0.22"
 sha2 = "0.10"
-subtle = "2"
 
 thiserror = "2"
 anyhow = "1"
@@ -46,8 +44,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 dotenvy = "0.15"
 
 [dev-dependencies]
-http-body-util = "0.1"
-tower = { version = "0.5", features = ["util"] }
 
 [profile.release]
 # A smaller, faster binary matters on a box someone else is paying for.

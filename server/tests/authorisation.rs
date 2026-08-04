@@ -53,9 +53,19 @@ async fn board_for(pool: &PgPool, owner: &db::User, public: bool) -> db::BoardRo
         .chars()
         .take(16)
         .collect();
-    db::insert_board(pool, owner.id, "Board", &slug, public, 0, &document())
-        .await
-        .expect("insert board")
+    db::insert_board(
+        pool,
+        &db::NewBoard {
+            owner_id: owner.id,
+            title: "Board",
+            slug: &slug,
+            is_public: public,
+            item_count: 0,
+            document: &document(),
+        },
+    )
+    .await
+    .expect("insert board")
 }
 
 macro_rules! db_test {
@@ -214,17 +224,61 @@ db_test!(the_raw_session_token_is_never_stored, pool, {
 });
 
 db_test!(an_oauth_state_can_only_be_used_once, pool, {
-    let state = auth::begin_oauth(&pool, "verifier-value").await.unwrap();
+    let handshake = auth::begin_oauth(&pool, "verifier-value").await.unwrap();
 
     assert_eq!(
-        auth::take_oauth(&pool, &state).await.unwrap().as_deref(),
+        auth::take_oauth(&pool, &handshake.state, &handshake.binding)
+            .await
+            .unwrap()
+            .as_deref(),
         Some("verifier-value")
     );
     assert!(
-        auth::take_oauth(&pool, &state).await.unwrap().is_none(),
+        auth::take_oauth(&pool, &handshake.state, &handshake.binding)
+            .await
+            .unwrap()
+            .is_none(),
         "replaying a handshake must fail"
     );
 });
+
+db_test!(
+    an_oauth_state_is_useless_without_its_browser_binding,
+    pool,
+    {
+        let handshake = auth::begin_oauth(&pool, "verifier-value").await.unwrap();
+
+        // Someone holding the state — from a log, a referrer, the victim's history —
+        // but not the cookie. They must not be able to finish the sign-in, and they
+        // must not be able to burn the handshake either.
+        assert!(
+            auth::take_oauth(&pool, &handshake.state, "guessed-binding")
+                .await
+                .unwrap()
+                .is_none(),
+            "a handshake was completed without its binding"
+        );
+
+        // Nor does the binding alone do anything without the state.
+        assert!(
+            auth::take_oauth(&pool, "guessed-state", &handshake.binding)
+                .await
+                .unwrap()
+                .is_none(),
+            "a handshake was completed without its state"
+        );
+
+        // And the real owner is unaffected by both attempts.
+        assert_eq!(
+            auth::take_oauth(&pool, &handshake.state, &handshake.binding)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("verifier-value"),
+            "a failed attack invalidated a legitimate handshake"
+        );
+    }
+);
 
 db_test!(deleting_an_account_removes_everything_attached, pool, {
     let alice = user(&pool, "alice").await;
@@ -312,7 +366,18 @@ db_test!(
             .take(16)
             .collect();
 
-        let result = db::insert_board(&pool, alice.id, "Bad", &slug, false, 0, &bad).await;
+        let result = db::insert_board(
+            &pool,
+            &db::NewBoard {
+                owner_id: alice.id,
+                title: "Bad",
+                slug: &slug,
+                is_public: false,
+                item_count: 0,
+                document: &bad,
+            },
+        )
+        .await;
         assert!(result.is_err(), "the schema constraint must reject this");
 
         // And the application layer refuses it first.

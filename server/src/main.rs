@@ -1,19 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
-use axum::http::{header, HeaderValue, Method};
-use rankroom_server::{config::Config, overlay::OverlayHub, routes, AppState};
+use rankroom_server::{config::Config, http::app, overlay::OverlayHub, AppState};
 use sqlx::postgres::PgPoolOptions;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tower_http::{
-    cors::CorsLayer, limit::RequestBodyLimitLayer, set_header::SetResponseHeaderLayer,
-    timeout::TimeoutLayer, trace::TraceLayer,
-};
 
-/// Bounded above the largest board we accept, so an oversized request is
-/// refused by the framework before any of it is parsed.
-const MAX_BODY_BYTES: usize = 100 * 1024 * 1024;
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// How often expired sessions and stale overlay channels are cleared out.
 const HOUSEKEEPING_INTERVAL: Duration = Duration::from_secs(15 * 60);
 
@@ -64,52 +54,7 @@ async fn main() -> Result<()> {
 
     housekeeping(pool.clone(), state.overlay.clone());
 
-    // An explicit allow-list, and credentials are only ever sent to it. A
-    // wildcard here would let any page on the internet act as a signed-in user.
-    let origins = config
-        .allowed_origins
-        .iter()
-        .map(|origin| HeaderValue::from_str(origin).context("invalid allowed origin"))
-        .collect::<Result<Vec<_>>>()?;
-
-    let cors = CorsLayer::new()
-        .allow_origin(origins)
-        .allow_credentials(true)
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([header::CONTENT_TYPE]);
-
-    // Per-IP token bucket: a burst is fine, a flood is not.
-    let governor = Arc::new(
-        GovernorConfigBuilder::default()
-            .per_second(config.rate_limit_per_second)
-            .burst_size(config.rate_limit_burst)
-            .finish()
-            .context("invalid rate limit configuration")?,
-    );
-
-    let app = routes::router(state)
-        .layer(TraceLayer::new_for_http())
-        .layer(cors)
-        .layer(GovernorLayer { config: governor })
-        .layer(RequestBodyLimitLayer::new(MAX_BODY_BYTES))
-        .layer(TimeoutLayer::with_status_code(
-            axum::http::StatusCode::REQUEST_TIMEOUT,
-            REQUEST_TIMEOUT,
-        ))
-        // Defence in depth for the JSON API: nothing here should ever be framed,
-        // sniffed as another type, or sent with a referrer.
-        .layer(SetResponseHeaderLayer::overriding(
-            header::X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            header::X_FRAME_OPTIONS,
-            HeaderValue::from_static("DENY"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            header::REFERRER_POLICY,
-            HeaderValue::from_static("no-referrer"),
-        ));
+    let app = app(state).context("could not build the HTTP stack")?;
 
     let listener = tokio::net::TcpListener::bind(config.bind)
         .await

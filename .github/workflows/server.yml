@@ -6,6 +6,10 @@ on:
     paths: ['server/**', '.github/workflows/server.yml']
   pull_request:
     paths: ['server/**', '.github/workflows/server.yml']
+  # Advisories appear without anyone touching the code, so the dependency
+  # audit runs on a clock as well as on a push.
+  schedule:
+    - cron: '17 6 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -40,8 +44,8 @@ jobs:
           --health-retries 5
 
     env:
-      # The authorisation tests need a real database; without this they skip,
-      # and skipping the tests that matter most would defeat the point.
+      # The authorisation and pentest suites need a real database; without this
+      # they skip, and skipping the tests that matter most would defeat the point.
       TEST_DATABASE_URL: postgres://rankroom:dev@127.0.0.1:5432/rankroom
 
     steps:
@@ -61,8 +65,21 @@ jobs:
       - name: Lint
         run: cargo clippy --all-targets --locked -- -D warnings
 
-      - name: Test
-        run: cargo test --locked
+      - name: Unit tests
+        run: cargo test --locked --lib
+
+      # Split out and named, so a red run says which guarantee broke rather than
+      # just "tests failed".
+      - name: Authorisation tests
+        run: cargo test --locked --test authorisation
+
+      - name: Attack the server
+        run: cargo test --locked --test pentest
+
+      - name: Fuzz the board validator
+        env:
+          FUZZ_ITERATIONS: 250000
+        run: cargo test --release --locked --test fuzz_validation
 
       - name: Build release
         run: cargo build --release --locked

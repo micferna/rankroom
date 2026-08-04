@@ -23,8 +23,15 @@ pub struct Config {
     pub rate_limit_per_second: u64,
     pub rate_limit_burst: u32,
     /// True when the server is reached over plain HTTP (local development).
-    /// Cookies drop their `Secure` flag, and nothing else changes.
+    /// Cookies drop their `Secure` flag and the `__Host-` prefix that requires
+    /// it; nothing else changes.
     pub insecure_cookies: bool,
+    /// Total bytes of board documents one account may keep.
+    ///
+    /// A board count on its own bounds nothing — two hundred boards of thirty
+    /// megabytes is still six gigabytes of somebody else's disk, and the person
+    /// filling it is signed in and within every other limit.
+    pub storage_quota_bytes: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +113,7 @@ impl Config {
             rate_limit_per_second: parse("RATE_LIMIT_PER_SECOND", 10)?,
             rate_limit_burst: parse("RATE_LIMIT_BURST", 40)?,
             insecure_cookies: parse("INSECURE_COOKIES", false)?,
+            storage_quota_bytes: parse::<i64>("STORAGE_QUOTA_MB", 512)?.saturating_mul(1024 * 1024),
         })
     }
 

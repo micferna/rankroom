@@ -18,6 +18,7 @@ pub mod board;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod http;
 pub mod overlay;
 pub mod routes;
 

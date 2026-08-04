@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
-    auth::{self, Auth, MaybeAuth, SESSION_COOKIE},
+    auth::{self, Auth},
     board::{self, BoardSummary, SaveBoard},
     db::{self, BoardRow},
     error::{ApiError, ApiResult},
@@ -64,17 +64,27 @@ async fn twitch_start(State(state): State<AppState>) -> ApiResult<Response> {
     let (verifier, challenge) = auth::pkce_pair();
     let handshake = auth::begin_oauth(&state.pool, &verifier).await?;
 
+    // The half of the handshake that stays in this browser. Ten minutes, so an
+    // abandoned sign-in leaves nothing behind.
+    let secure = !state.config.insecure_cookies;
+    let binding = auth::cookie(
+        auth::oauth_cookie_name(secure),
+        &handshake.binding,
+        60 * 10,
+        secure,
+    );
+
     // Only the user's identity is requested: no channel, chat or stream scopes.
     // The chat features run anonymously and need nothing from this token.
     let url = format!(
         "https://id.twitch.tv/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=&state={}&code_challenge={}&code_challenge_method=S256",
         urlencode(&twitch.client_id),
         urlencode(&state.config.redirect_uri()),
-        urlencode(&handshake),
+        urlencode(&handshake.state),
         urlencode(&challenge),
     );
 
-    Ok(Redirect::to(&url).into_response())
+    Ok(([(header::SET_COOKIE, binding)], Redirect::to(&url)).into_response())
 }
 
 #[derive(Deserialize)]
@@ -117,9 +127,19 @@ async fn twitch_callback(
         return Err(ApiError::BadRequest("missing code or state"));
     };
 
-    // Consuming the state proves this callback answers a handshake this server
-    // started, which is what stops a forged callback from signing anyone in.
-    let verifier = auth::take_oauth(&state.pool, &handshake)
+    let secure = !state.config.insecure_cookies;
+
+    // The state proves the handshake is one this server started. The cookie
+    // proves it is the one *this browser* started — without it, an attacker
+    // could hand a victim a callback URL for the attacker's own Twitch account
+    // and the victim would silently end up signed in as them.
+    //
+    // Checked before the code is exchanged: an unbound callback costs Twitch
+    // nothing and tells the caller nothing.
+    let binding = cookie(&headers, auth::oauth_cookie_name(secure))
+        .ok_or(ApiError::BadRequest("unknown or expired sign-in attempt"))?;
+
+    let verifier = auth::take_oauth(&state.pool, &handshake, &binding)
         .await?
         .ok_or(ApiError::BadRequest("unknown or expired sign-in attempt"))?;
 
@@ -180,37 +200,48 @@ async fn twitch_callback(
         auth::create_session(&state.pool, user.id, state.config.session_ttl, user_agent).await?;
 
     let max_age = i64::try_from(state.config.session_ttl.as_secs()).unwrap_or(i64::MAX);
-    let cookie = auth::cookie(
-        SESSION_COOKIE,
+    let session_cookie = auth::cookie(
+        auth::session_cookie_name(secure),
         &session.token,
         max_age,
-        !state.config.insecure_cookies,
+        secure,
     );
+    // The handshake is spent; the cookie that bound it has no further use.
+    let spent = auth::cookie(auth::oauth_cookie_name(secure), "", 0, secure);
 
     Ok((
-        [(header::SET_COOKIE, cookie)],
+        [
+            (header::SET_COOKIE, session_cookie),
+            (header::SET_COOKIE, spent),
+        ],
         Redirect::to(&format!("{}#/account", state.config.app_url)),
     )
         .into_response())
 }
 
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {
-    if let Some(token) = session_cookie(&headers) {
+    let secure = !state.config.insecure_cookies;
+    let name = auth::session_cookie_name(secure);
+
+    if let Some(token) = cookie(&headers, name) {
         auth::revoke_session(&state.pool, &token).await?;
     }
 
-    let cleared = auth::cookie(SESSION_COOKIE, "", 0, !state.config.insecure_cookies);
+    let cleared = auth::cookie(name, "", 0, secure);
     Ok(([(header::SET_COOKIE, cleared)], StatusCode::NO_CONTENT).into_response())
 }
 
-fn session_cookie(headers: &HeaderMap) -> Option<String> {
+/// Reads one cookie by name. The first match wins, which is why the production
+/// cookie names carry the `__Host-` prefix: it stops anything but this exact
+/// host from setting a second cookie of the same name.
+fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(header::COOKIE)?
         .to_str()
         .ok()?
         .split(';')
         .filter_map(|pair| pair.trim().split_once('='))
-        .find(|(key, _)| *key == SESSION_COOKIE)
+        .find(|(key, _)| *key == name)
         .map(|(_, value)| value.to_string())
 }
 
@@ -222,7 +253,8 @@ async fn me(Auth(user): Auth) -> Json<Value> {
 async fn delete_me(State(state): State<AppState>, Auth(user): Auth) -> ApiResult<Response> {
     db::delete_user(&state.pool, user.id).await?;
 
-    let cleared = auth::cookie(SESSION_COOKIE, "", 0, !state.config.insecure_cookies);
+    let secure = !state.config.insecure_cookies;
+    let cleared = auth::cookie(auth::session_cookie_name(secure), "", 0, secure);
     Ok(([(header::SET_COOKIE, cleared)], StatusCode::NO_CONTENT).into_response())
 }
 
@@ -293,20 +325,25 @@ async fn save_board(
 ) -> ApiResult<(StatusCode, Json<BoardSummary>)> {
     let item_count = check(&payload)?;
 
-    if db::count_boards(&state.pool, user.id).await? >= db::BOARD_QUOTA {
-        return Err(ApiError::QuotaExceeded);
-    }
-
-    let row = db::insert_board(
+    let created = db::insert_board_within_quota(
         &state.pool,
-        user.id,
-        payload.title.trim(),
-        &slug(),
-        payload.is_public,
-        item_count,
-        &payload.document,
+        &db::NewBoard {
+            owner_id: user.id,
+            title: payload.title.trim(),
+            slug: &slug(),
+            is_public: payload.is_public,
+            item_count,
+            document: &payload.document,
+        },
+        state.config.storage_quota_bytes,
     )
     .await?;
+
+    let row = match created {
+        Ok(row) => row,
+        Err(db::QuotaDenial::Count) => return Err(ApiError::QuotaExceeded),
+        Err(db::QuotaDenial::Storage) => return Err(ApiError::StorageExceeded),
+    };
 
     publish_overlay(&state, user.id, &row);
     Ok((StatusCode::CREATED, Json(summarise(&row))))
@@ -387,10 +424,32 @@ struct PublicBoard {
     updated_at: time::OffsetDateTime,
 }
 
+/// A Twitch login, as the database constrains it. Anything else cannot name a
+/// user, so it is "not found" without a query — and a NUL byte, which Postgres
+/// refuses outright, never becomes a 500.
+fn is_login_shaped(login: &str) -> bool {
+    (1..=25).contains(&login.len())
+        && login
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+/// A slug as [`slug`] emits it and the database constrains it.
+fn is_slug_shaped(slug: &str) -> bool {
+    (12..=32).contains(&slug.len())
+        && slug
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+}
+
 async fn public_profile(
     State(state): State<AppState>,
     Path(login): Path<String>,
 ) -> ApiResult<Json<PublicProfile>> {
+    if !is_login_shaped(&login) {
+        return Err(ApiError::NotFound);
+    }
+
     let user = db::user_by_login(&state.pool, &login)
         .await?
         .ok_or(ApiError::NotFound)?;
@@ -416,8 +475,11 @@ async fn public_profile(
 async fn public_board(
     State(state): State<AppState>,
     Path(slug): Path<String>,
-    MaybeAuth(_viewer): MaybeAuth,
 ) -> ApiResult<Json<Value>> {
+    if !is_slug_shaped(&slug) {
+        return Err(ApiError::NotFound);
+    }
+
     let row = db::public_board_by_slug(&state.pool, &slug)
         .await?
         .ok_or(ApiError::NotFound)?;
