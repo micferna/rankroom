@@ -35,6 +35,7 @@ interface BoardCanvasProps {
   onPickFiles: () => void
   onAddTiles: (labels: string[]) => void
   onBrowseTemplates: () => void
+  onPickFolder: () => void
 }
 
 function targetZone(board: Board, overId: string): ZoneId | null {
@@ -49,6 +50,7 @@ export function BoardCanvas({
   onPickFiles,
   onAddTiles,
   onBrowseTemplates,
+  onPickFolder,
 }: BoardCanvasProps) {
   const t = useT()
   const board = useBoardStore((state) => state.board)
@@ -192,6 +194,7 @@ export function BoardCanvas({
             onPickFiles={onPickFiles}
             onAddTiles={onAddTiles}
             onBrowseTemplates={onBrowseTemplates}
+            onPickFolder={onPickFolder}
           />
         ) : (
           view.tiers.map((tier, index) => (

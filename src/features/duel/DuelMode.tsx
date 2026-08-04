@@ -7,19 +7,15 @@ import type { MessageKey } from '~/i18n/en'
 import { useHotkeys } from '~/hooks/useHotkeys'
 import { stageTileSize, useViewport } from '~/hooks/useViewport'
 import {
-  answerDuel,
   canUndoDuel,
   duelPair,
   duelProgress,
   estimatedComparisons,
   isDuelComplete,
-  parkCurrent,
   remainingComparisons,
-  startDuel,
-  undoDuel,
   type DuelState,
-  type DuelVerdict,
 } from '~/lib/duel'
+import { activeRun, useDuelStore } from '~/store/duelStore'
 import { cx } from '~/lib/cx'
 import { readableInk } from '~/lib/palette'
 import { useBoardStore } from '~/store/boardStore'
@@ -56,9 +52,19 @@ export function DuelMode() {
   const setMode = useUiStore((state) => state.setMode)
   const notify = useUiStore((state) => state.notify)
 
-  const [duel, setDuel] = useState<DuelState | null>(null)
+  const storedRun = useDuelStore((state) => state.run)
+  const runBoardId = useDuelStore((state) => state.boardId)
+  const startRun = useDuelStore((state) => state.start)
+  const answerRun = useDuelStore((state) => state.answer)
+  const parkRun = useDuelStore((state) => state.park)
+  const undoRun = useDuelStore((state) => state.undo)
+  const resetRun = useDuelStore((state) => state.reset)
+
   const [shape, setShape] = useState<ShapeId>('peak')
   const tileSize = stageTileSize(useViewport(), 0.3, 210)
+
+  // The run survives leaving the tab, but not the board changing underneath it.
+  const duel = activeRun(storedRun, runBoardId, board)
 
   const benchIds = board.bench
   const allIds = useMemo(() => Object.keys(board.items), [board.items])
@@ -66,27 +72,19 @@ export function DuelMode() {
   const pair = duel ? duelPair(duel) : null
   const complete = duel !== null && isDuelComplete(duel)
 
-  const answer = (verdict: DuelVerdict) => {
-    setDuel((current) => (current ? answerDuel(current, verdict) : current))
-  }
-
   useHotkeys(
     {
       ArrowLeft: () => {
-        answer('left')
+        answerRun('left')
       },
       ArrowRight: () => {
-        answer('right')
+        answerRun('right')
       },
       ' ': () => {
-        answer('tie')
+        answerRun('tie')
       },
-      s: () => {
-        setDuel((current) => (current ? parkCurrent(current) : current))
-      },
-      u: () => {
-        setDuel((current) => (current ? undoDuel(current) : current))
-      },
+      s: parkRun,
+      u: undoRun,
     },
     pair !== null,
   )
@@ -101,7 +99,7 @@ export function DuelMode() {
             notify(t('duel.tooFew'), 'bad')
             return
           }
-          setDuel(startDuel(ids))
+          startRun(ids, board.id)
         }}
       />
     )
@@ -116,11 +114,10 @@ export function DuelMode() {
         onApply={() => {
           applyRanking(duel.ranked, weightsFor(shape, board.tiers.length))
           notify(t('duel.applied', { count: duel.ranked.length, duels: duel.comparisons }), 'good')
+          resetRun()
           setMode('edit')
         }}
-        onRestart={() => {
-          setDuel(null)
-        }}
+        onRestart={resetRun}
         labelOf={(id) => board.items[id]?.label ?? ''}
       />
     )
@@ -155,7 +152,7 @@ export function DuelMode() {
             key={verdict}
             type="button"
             onClick={() => {
-              answer(verdict)
+              answerRun(verdict)
             }}
             className={cx(
               'group flex flex-col items-center gap-3 rounded-panel border border-edge bg-desk p-3 sm:gap-4 sm:p-5',
@@ -174,29 +171,17 @@ export function DuelMode() {
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button
           onClick={() => {
-            answer('tie')
+            answerRun('tie')
           }}
         >
           {t('duel.tie')}
           <span className="kbd ml-1">{t('duel.space')}</span>
         </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setDuel(parkCurrent(duel))
-          }}
-        >
+        <Button variant="ghost" onClick={parkRun}>
           {t('duel.skip')}
           <span className="kbd ml-1">S</span>
         </Button>
-        <Button
-          variant="ghost"
-          icon="undo"
-          disabled={!canUndoDuel(duel)}
-          onClick={() => {
-            setDuel(undoDuel(duel))
-          }}
-        >
+        <Button variant="ghost" icon="undo" disabled={!canUndoDuel(duel)} onClick={undoRun}>
           {t('action.undo')}
           <span className="kbd ml-1">U</span>
         </Button>
@@ -211,6 +196,15 @@ export function DuelMode() {
         </div>
         <p className="type-mono mt-2 text-center text-[10px] text-slate uppercase">
           {t('duel.placed', { placed: duel.ranked.length, waiting: duel.queue.length })}
+        </p>
+        <p className="mt-3 text-center">
+          <button
+            type="button"
+            onClick={resetRun}
+            className="text-[11px] text-slate underline-offset-2 transition-colors hover:text-program hover:underline"
+          >
+            {t('duel.abandon')}
+          </button>
         </p>
       </div>
     </div>

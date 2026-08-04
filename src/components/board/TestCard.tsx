@@ -7,6 +7,7 @@ interface TestCardProps {
   onPickFiles: () => void
   onAddTiles: (labels: string[]) => void
   onBrowseTemplates: () => void
+  onPickFolder: () => void
 }
 
 /**
@@ -14,7 +15,12 @@ interface TestCardProps {
  * empty board is: a channel with nothing on it yet. It doubles as the drop
  * target and the onboarding copy, so there is no separate tutorial to dismiss.
  */
-export function TestCard({ onPickFiles, onAddTiles, onBrowseTemplates }: TestCardProps) {
+export function TestCard({
+  onPickFiles,
+  onAddTiles,
+  onBrowseTemplates,
+  onPickFolder,
+}: TestCardProps) {
   const t = useT()
 
   return (
@@ -46,13 +52,22 @@ export function TestCard({ onPickFiles, onAddTiles, onBrowseTemplates }: TestCar
           >
             {t('templates.open')}
           </button>
-          <button
-            type="button"
-            onClick={onPickFiles}
-            className="h-8 w-full rounded-control border border-edge px-4 text-sm text-chalk transition-colors hover:bg-rail"
-          >
-            {t('empty.chooseImages')}
-          </button>
+          <div className="flex w-full gap-2">
+            <button
+              type="button"
+              onClick={onPickFiles}
+              className="h-8 flex-1 rounded-control border border-edge px-3 text-sm text-chalk transition-colors hover:bg-rail"
+            >
+              {t('empty.chooseImages')}
+            </button>
+            <button
+              type="button"
+              onClick={onPickFolder}
+              className="h-8 flex-1 rounded-control border border-edge px-3 text-sm text-chalk transition-colors hover:bg-rail"
+            >
+              {t('empty.chooseFolder')}
+            </button>
+          </div>
           <AddTiles onAdd={onAddTiles} className="w-full" placeholder={t('empty.addPlaceholder')} />
         </div>
 

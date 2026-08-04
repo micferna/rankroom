@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BoardCanvas } from '~/components/board/BoardCanvas'
 import { CommandPalette, type Command } from '~/components/CommandPalette'
 import { Inspector } from '~/components/Inspector'
@@ -21,6 +21,9 @@ import { useHotkeys } from '~/hooks/useHotkeys'
 import { useImageImport } from '~/hooks/useImageImport'
 import { useSession } from '~/hooks/useSession'
 import { cx } from '~/lib/cx'
+import { readBoardFile } from '~/lib/boardFile'
+import { errorKey } from '~/lib/errors'
+import { boardFileFromDrop, dropHasFolder, imagesFromDrop } from '~/lib/files'
 import { imageFilesFrom } from '~/lib/image'
 import { saveBoard } from '~/lib/storage'
 import { useBoardStore } from '~/store/boardStore'
@@ -39,6 +42,7 @@ export function Studio({ shareToken }: StudioProps) {
   const canUndo = useBoardStore((state) => state.canUndo)
   const canRedo = useBoardStore((state) => state.canRedo)
   const newBoard = useBoardStore((state) => state.newBoard)
+  const replaceBoard = useBoardStore((state) => state.replaceBoard)
   const shuffle = useBoardStore((state) => state.shuffle)
   const clearPlacements = useBoardStore((state) => state.clearPlacements)
   const removeItem = useBoardStore((state) => state.removeItem)
@@ -60,8 +64,23 @@ export function Studio({ shareToken }: StudioProps) {
   useSession(shareToken)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [dropping, setDropping] = useState(false)
+  const [dropping, setDropping] = useState<'files' | 'folder' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+  const boardInputRef = useRef<HTMLInputElement>(null)
+
+  const openBoardFile = useCallback(
+    async (file: File) => {
+      try {
+        const opened = await readBoardFile(file)
+        replaceBoard(opened)
+        notify(t('file.opened', { title: opened.title }), 'good')
+      } catch (error) {
+        notify(t(errorKey(error, 'file.unreadable')), 'bad')
+      }
+    },
+    [replaceBoard, notify, t],
+  )
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -81,22 +100,36 @@ export function Studio({ shareToken }: StudioProps) {
     const onDragEnter = (event: DragEvent) => {
       if (!event.dataTransfer?.types.includes('Files')) return
       depth += 1
-      setDropping(true)
+      setDropping(dropHasFolder(event.dataTransfer) ? 'folder' : 'files')
     }
     const onDragOver = (event: DragEvent) => {
       if (event.dataTransfer?.types.includes('Files')) event.preventDefault()
     }
     const onDragLeave = () => {
       depth = Math.max(0, depth - 1)
-      if (depth === 0) setDropping(false)
+      if (depth === 0) setDropping(null)
     }
     const onDrop = (event: DragEvent) => {
-      const files = imageFilesFrom(event.dataTransfer)
-      if (files.length === 0) return
+      const transfer = event.dataTransfer
+
+      // A lone .json or .rankroom opens as a board; anything else is images.
+      const boardFile = boardFileFromDrop(transfer)
+      if (boardFile) {
+        event.preventDefault()
+        depth = 0
+        setDropping(null)
+        void openBoardFile(boardFile)
+        return
+      }
+
+      if (!transfer?.types.includes('Files')) return
       event.preventDefault()
       depth = 0
-      setDropping(false)
-      void importFiles(files)
+      setDropping(null)
+      // Folders only surface through the entries API, so this is awaited.
+      void imagesFromDrop(transfer).then((files) => {
+        if (files.length > 0) void importFiles(files)
+      })
     }
     const onPaste = (event: ClipboardEvent) => {
       const files = imageFilesFrom(event.clipboardData)
@@ -118,7 +151,7 @@ export function Studio({ shareToken }: StudioProps) {
       window.removeEventListener('drop', onDrop)
       window.removeEventListener('paste', onPaste)
     }
-  }, [importFiles])
+  }, [importFiles, openBoardFile])
 
   const save = () => {
     void saveBoard(board, moves).then(() => {
@@ -172,6 +205,21 @@ export function Studio({ shareToken }: StudioProps) {
           openDialog('share')
         },
       },
+      {
+        id: 'open-file',
+        group: t('cmd.group.board'),
+        label: t('file.open'),
+        icon: 'upload',
+        run: () => boardInputRef.current?.click(),
+      },
+      {
+        id: 'add-folder',
+        group: t('cmd.group.add'),
+        label: t('cmd.addFolder'),
+        icon: 'layers',
+        run: () => folderInputRef.current?.click(),
+      },
+
       {
         id: 'templates',
         group: t('cmd.group.add'),
@@ -329,6 +377,7 @@ export function Studio({ shareToken }: StudioProps) {
               onBrowseTemplates={() => {
                 openDialog('templates')
               }}
+              onPickFolder={() => folderInputRef.current?.click()}
             />
             <Inspector
               selectedId={selectedId}
@@ -353,6 +402,36 @@ export function Studio({ shareToken }: StudioProps) {
         className="sr-only"
         onChange={(event) => {
           void importFiles(Array.from(event.target.files ?? []))
+          event.target.value = ''
+        }}
+      />
+
+      {/* webkitdirectory is non-standard but universally implemented, and it is
+          the only way to offer "pick a folder" from a file input. */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        // @ts-expect-error -- React has no typing for this non-standard attribute.
+        webkitdirectory=""
+        className="sr-only"
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []).sort((a, b) =>
+            a.name.localeCompare(b.name, undefined, { numeric: true }),
+          )
+          void importFiles(files)
+          event.target.value = ''
+        }}
+      />
+
+      <input
+        ref={boardInputRef}
+        type="file"
+        accept=".json,.rankroom,application/json,application/zip"
+        className="sr-only"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) void openBoardFile(file)
           event.target.value = ''
         }}
       />
@@ -386,7 +465,11 @@ export function Studio({ shareToken }: StudioProps) {
       />
       <ExportDialog open={dialog === 'export'} onClose={closeDialog} />
       <ShareDialog open={dialog === 'share'} onClose={closeDialog} />
-      <ShelfDialog open={dialog === 'shelf'} onClose={closeDialog} />
+      <ShelfDialog
+        open={dialog === 'shelf'}
+        onClose={closeDialog}
+        onOpenFile={() => boardInputRef.current?.click()}
+      />
       <TemplateGallery open={dialog === 'templates'} onClose={closeDialog} />
       <PaletteDialog open={dialog === 'palette'} onClose={closeDialog} />
       <HelpDialog open={dialog === 'help'} onClose={closeDialog} />

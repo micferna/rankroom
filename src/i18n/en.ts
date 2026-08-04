@@ -70,10 +70,13 @@ export const en = {
   'empty.body':
     'Drop images anywhere on this page, paste them from your clipboard, or add plain text tiles. Nothing is uploaded — the board stays in this browser until you export or share it.',
   'empty.chooseImages': 'Choose images',
+  'empty.chooseFolder': 'Choose a folder',
   'empty.addPlaceholder': '…or type a name and press Enter',
   'empty.tip': 'Tip — press {key} for every command',
 
   'drop.overlay': 'Drop to add tiles',
+  'drop.folder': 'Drop the folder — every image inside is added',
+  'cmd.addFolder': 'Add a folder of images',
   'drop.decoding': 'Decoding {count}…',
 
   'inspector.selected': 'Selected tile',
@@ -109,6 +112,7 @@ export const en = {
   'duel.skip': 'Skip this one',
   'duel.space': 'Space',
   'duel.placed': '{placed} placed · {waiting} waiting',
+  'duel.abandon': 'Abandon this run',
   'duel.completeSlug': 'Run complete',
   'duel.completeTitle': '{count} ranked in {duels} duels',
   'duel.skipped': '{count} skipped — they stay on the bench.',
@@ -402,6 +406,16 @@ export const en = {
   'image.tooBig': 'That image is over 12 MB. Try a smaller export.',
   'image.damaged': 'That image is damaged and could not be decoded.',
   'image.canvasBlocked': 'This browser blocked canvas rendering.',
+
+  'file.open': 'Open a board file',
+  'file.openHint': 'A .rankroom archive or a .json board',
+  'file.opened': 'Opened “{title}”.',
+  'file.empty': 'That file is empty.',
+  'file.unreadable': 'That file is not a RankRoom board.',
+  'file.noManifest': 'That archive does not contain a board.',
+  'file.saveArchive': 'Board archive (.rankroom)',
+  'file.archiveSaved': 'Saved as a .rankroom archive.',
+  'file.archiveHint': 'Images as real files, and around a quarter smaller than the .json',
 
   'error.parse.notBoard': 'Not a RankRoom board.',
   'error.parse.version': 'Unsupported board version.',

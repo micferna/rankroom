@@ -65,10 +65,13 @@ export const fr: Record<keyof typeof en, string> = {
   'empty.body':
     'Dépose des images n’importe où sur la page, colle-les depuis le presse-papiers, ou ajoute des tuiles texte. Rien n’est envoyé — le tableau reste dans ce navigateur jusqu’à ce que tu l’exportes ou le partages.',
   'empty.chooseImages': 'Choisir des images',
+  'empty.chooseFolder': 'Choisir un dossier',
   'empty.addPlaceholder': '…ou tape un nom et appuie sur Entrée',
   'empty.tip': 'Astuce — appuie sur {key} pour toutes les commandes',
 
   'drop.overlay': 'Dépose pour ajouter des tuiles',
+  'drop.folder': 'Dépose le dossier — toutes les images dedans sont ajoutées',
+  'cmd.addFolder': 'Ajouter un dossier d’images',
   'drop.decoding': 'Décodage de {count}…',
 
   'inspector.selected': 'Tuile sélectionnée',
@@ -104,6 +107,7 @@ export const fr: Record<keyof typeof en, string> = {
   'duel.skip': 'Passer celui-ci',
   'duel.space': 'Espace',
   'duel.placed': '{placed} placées · {waiting} en attente',
+  'duel.abandon': 'Abandonner cette session',
   'duel.completeSlug': 'Session terminée',
   'duel.completeTitle': '{count} classées en {duels} duels',
   'duel.skipped': '{count} passées — elles restent dans la réserve.',
@@ -404,6 +408,16 @@ export const fr: Record<keyof typeof en, string> = {
   'image.tooBig': 'Cette image dépasse 12 Mo. Essaie un export plus léger.',
   'image.damaged': 'Cette image est corrompue et n’a pas pu être décodée.',
   'image.canvasBlocked': 'Ce navigateur bloque le rendu canvas.',
+
+  'file.open': 'Ouvrir un fichier de tableau',
+  'file.openHint': 'Une archive .rankroom ou un tableau .json',
+  'file.opened': '« {title} » ouvert.',
+  'file.empty': 'Ce fichier est vide.',
+  'file.unreadable': 'Ce fichier n’est pas un tableau RankRoom.',
+  'file.noManifest': 'Cette archive ne contient pas de tableau.',
+  'file.saveArchive': 'Archive du tableau (.rankroom)',
+  'file.archiveSaved': 'Enregistré en archive .rankroom.',
+  'file.archiveHint': 'Images en vrais fichiers, et environ un quart plus léger que le .json',
 
   'error.parse.notBoard': 'Ce n’est pas un tableau RankRoom.',
   'error.parse.version': 'Version de tableau non prise en charge.',

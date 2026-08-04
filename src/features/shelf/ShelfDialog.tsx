@@ -9,6 +9,7 @@ import { useUiStore } from '~/store/uiStore'
 interface ShelfDialogProps {
   open: boolean
   onClose: () => void
+  onOpenFile: () => void
 }
 
 function relative(timestamp: number, t: Translate): string {
@@ -20,7 +21,7 @@ function relative(timestamp: number, t: Translate): string {
 }
 
 /** Boards kept in this browser. Saving is explicit; autosave is separate and invisible. */
-export function ShelfDialog({ open, onClose }: ShelfDialogProps) {
+export function ShelfDialog({ open, onClose, onOpenFile }: ShelfDialogProps) {
   const t = useT()
   const board = useBoardStore((state) => state.board)
   const replaceBoard = useBoardStore((state) => state.replaceBoard)
@@ -52,6 +53,16 @@ export function ShelfDialog({ open, onClose }: ShelfDialogProps) {
       hint={t('shelf.hint')}
       footer={
         <>
+          <Button
+            icon="upload"
+            title={t('file.openHint')}
+            onClick={() => {
+              onClose()
+              onOpenFile()
+            }}
+          >
+            {t('file.open')}
+          </Button>
           <Button
             icon="plus"
             onClick={() => {

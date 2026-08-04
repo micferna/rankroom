@@ -3,6 +3,7 @@ import { Button } from '~/components/ui/Button'
 import { Segmented, Slider, Switch } from '~/components/ui/Field'
 import { Modal } from '~/components/ui/Modal'
 import { useT } from '~/i18n'
+import { boardFileName, boardToArchive } from '~/lib/boardFile'
 import { downloadBlob, downloadText, slugify } from '~/lib/download'
 import { errorKey } from '~/lib/errors'
 import { canvasToBlob, renderBoard, renderThumbnail, type RenderOptions } from '~/lib/render'
@@ -103,6 +104,27 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       hint={t('export.hint')}
       footer={
         <>
+          <Button
+            icon="download"
+            title={t('file.archiveHint')}
+            disabled={busy}
+            onClick={() => {
+              setBusy(true)
+              void boardToArchive(board)
+                .then((blob) => {
+                  downloadBlob(blob, boardFileName(board, 'rankroom'))
+                  notify(t('file.archiveSaved'), 'good')
+                })
+                .catch((error: unknown) => {
+                  notify(t(errorKey(error, 'export.failed')), 'bad')
+                })
+                .finally(() => {
+                  setBusy(false)
+                })
+            }}
+          >
+            {t('file.saveArchive')}
+          </Button>
           <Button
             icon="download"
             onClick={() => {
