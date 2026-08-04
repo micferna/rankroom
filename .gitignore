@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.local
+
+# Test output
+coverage/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Env
+.env
+.env.*
+!.env.example

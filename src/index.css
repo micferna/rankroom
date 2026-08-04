@@ -1,0 +1,317 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Type
+   Archivo is a variable grotesque with a width axis: the same family covers the
+   wide, poster-like titling of a broadcast lower third and the plain UI text
+   underneath. Martian Mono is the equipment label — timecode, counters, keycaps.
+   Both are self-hosted, so the app makes no third-party requests and works
+   offline once the service worker has cached them.
+--------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-stretch: 75% 112.5%;
+  font-display: swap;
+  src: url('/fonts/martianmono-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-stretch: 75% 112.5%;
+  font-display: swap;
+  src: url('/fonts/martianmono-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+/* ---------------------------------------------------------------------------
+   Tokens
+   Named after the room, not the pixel: `program` and `preview` are the two buses
+   of a vision mixer — red for what is on air, green for what is cued next — and
+   the app uses them with exactly that meaning everywhere.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-room: #0a0c10;
+  --color-desk: #131922;
+  --color-rail: #1b2331;
+  --color-edge: #26314180;
+  --color-slate: #7e8ca3;
+  --color-chalk: #e9eff8;
+  --color-program: #ff2e38;
+  --color-preview: #22dd8a;
+  --color-tungsten: #ffb84d;
+
+  --font-display: 'Archivo', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Martian Mono', ui-monospace, 'SF Mono', monospace;
+
+  --radius-tile: 0.375rem;
+  --radius-control: 0.25rem;
+  --radius-panel: 0.75rem;
+
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+/*
+ * Text tiles get a generated swatch from the item's hue. Its lightness has to
+ * follow the theme, or the initials — which are always `chalk` — end up dark on
+ * dark in daylight.
+ */
+:root {
+  --tile-lightness: 24%;
+}
+
+:root[data-theme='daylight'] {
+  --color-room: #edf1f7;
+  --color-desk: #ffffff;
+  --color-rail: #f3f6fa;
+  --color-edge: #cbd5e199;
+  --color-slate: #5c6879;
+  --color-chalk: #0d1420;
+  --color-program: #e01020;
+  --color-preview: #08a862;
+  --color-tungsten: #b26b00;
+  --tile-lightness: 76%;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+
+@layer base {
+  * {
+    border-color: var(--color-edge);
+  }
+
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  :root[data-theme='daylight'] {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-room);
+    color: var(--color-chalk);
+    font-family: var(--font-display);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+  }
+
+  /* One focus treatment for the whole app: a preview-green ring, never removed. */
+  :focus-visible {
+    outline: 2px solid var(--color-preview);
+    outline-offset: 2px;
+    border-radius: var(--radius-control);
+  }
+
+  ::selection {
+    background: var(--color-preview);
+    color: var(--color-room);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--color-slate) 34%, transparent);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--color-slate) 60%, transparent);
+    background-clip: content-box;
+  }
+
+  input,
+  textarea,
+  button,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Signature: the tally lamp
+   A real control room has one red lamp, and it means one thing. It is the only
+   place in the app that pulses, so it always reads as "you are on air".
+--------------------------------------------------------------------------- */
+
+@layer components {
+  .tally-lamp {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--color-program) 55%, transparent),
+      0 0 14px 2px color-mix(in oklab, var(--color-program) 70%, transparent);
+    animation: tally-pulse 1.9s var(--ease-snap) infinite;
+  }
+
+  /* The eyebrow used above every panel: small, tracked, monospaced. */
+  .slug {
+    font-family: var(--font-mono);
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-slate);
+  }
+
+  .panel {
+    background-color: var(--color-desk);
+    border: 1px solid var(--color-edge);
+    border-radius: var(--radius-panel);
+  }
+
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    line-height: 1;
+    padding: 0.25rem 0.3rem;
+    border-radius: 0.25rem;
+    border: 1px solid var(--color-edge);
+    background: color-mix(in oklab, var(--color-chalk) 6%, transparent);
+    color: var(--color-slate);
+  }
+
+  /* Diagonal hazard tape, used only on destructive confirmations. */
+  .hazard {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      color-mix(in oklab, var(--color-program) 22%, transparent) 0 8px,
+      transparent 8px 16px
+    );
+  }
+}
+
+@keyframes tally-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes slate-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes land {
+  0% {
+    transform: scale(1.22);
+    filter: brightness(1.6);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@layer utilities {
+  .animate-land {
+    animation: land 0.42s var(--ease-snap);
+  }
+  .animate-rise {
+    animation: rise 0.28s var(--ease-snap) both;
+  }
+  .animate-slate-wipe {
+    animation: slate-wipe 0.5s var(--ease-snap) both;
+  }
+
+  /* Wide, poster-like titling. The width axis is what makes it look broadcast. */
+  .type-display {
+    font-family: var(--font-display);
+    font-stretch: 118%;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 0.94;
+    text-transform: uppercase;
+  }
+
+  .type-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .no-drag {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+}
+
+/* Nobody should get motion sickness from a tier list. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The OBS overlay is composited over live video: no page background at all. */
+body[data-surface='overlay'] {
+  background: transparent;
+}

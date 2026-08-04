@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest something RankRoom should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation, not the solution — it usually leads somewhere better.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What did you have in mind?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Who is this for?
+      options:
+        - Making a tier list on my own
+        - Recording a video
+        - Live streaming
+        - Involving an audience
+        - Something else

@@ -1,0 +1,6 @@
+dist
+coverage
+node_modules
+public/fonts
+*.woff2
+package-lock.json

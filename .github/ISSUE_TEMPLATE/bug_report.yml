@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in RankRoom does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Boards never leave your browser, so we cannot see
+        what you saw — the more concrete you can be, the faster this gets fixed.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Board tab
+        2. Drop three images
+        3. …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app?
+      options:
+        - Board (drag and drop)
+        - Duel mode
+        - Stream mode / OBS overlay
+        - Crowd mode (Twitch chat)
+        - Replay / video export
+        - Compare
+        - Image or link export
+        - Somewhere else
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: Firefox 134 on Windows 11
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: Anything red in the browser console. Optional, but very useful.
+      render: text

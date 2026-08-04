@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="studio">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>RankRoom — the ranking studio</title>
+    <meta
+      name="description"
+      content="Build tier lists that look made for camera. Rank by 1v1 duels, reveal them live, drive an OBS overlay, and export the whole session as video."
+    />
+    <meta name="theme-color" content="#0a0c10" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#edf1f7" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
+
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="RankRoom — the ranking studio" />
+    <meta
+      property="og:description"
+      content="Tier lists for people who publish them. Duel sorting, live reveal, OBS overlay, exportable replays."
+    />
+    <meta property="og:url" content="https://micferna.github.io/rankroom/" />
+    <meta property="og:image" content="https://micferna.github.io/rankroom/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link
+      rel="preload"
+      href="./fonts/archivo-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="./fonts/martianmono-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p style="font-family: system-ui; padding: 2rem; color: #e9eff8; background: #0a0c10">
+        RankRoom builds tier lists in the browser, so it needs JavaScript enabled.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

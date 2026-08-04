@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One PR per ecosystem keeps the noise down and the review meaningful.
+      react:
+        patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
+      dev-tooling:
+        patterns: ['eslint*', '@eslint/*', 'typescript-eslint', 'prettier', 'vitest', '@vitest/*']
+      build:
+        patterns: ['vite', '@vitejs/*', 'tailwindcss', '@tailwindcss/*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

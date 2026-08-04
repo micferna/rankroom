@@ -1,0 +1,22 @@
+{
+  "name": "RankRoom — the ranking studio",
+  "short_name": "RankRoom",
+  "description": "Tier lists for people who publish them: duel sorting, live reveal, OBS overlay and exportable replays.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0c10",
+  "theme_color": "#0a0c10",
+  "categories": ["productivity", "entertainment", "utilities"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "./icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
