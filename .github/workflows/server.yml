@@ -1,0 +1,117 @@
+name: Server
+
+on:
+  push:
+    branches: [main]
+    paths: ['server/**', '.github/workflows/server.yml']
+  pull_request:
+    paths: ['server/**', '.github/workflows/server.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  check:
+    name: Format, lint, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: rankroom
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: rankroom
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U rankroom"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # The authorisation tests need a real database; without this they skip,
+      # and skipping the tests that matter most would defeat the point.
+      TEST_DATABASE_URL: postgres://rankroom:dev@127.0.0.1:5432/rankroom
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Lint
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build release
+        run: cargo build --release --locked
+
+  supply-chain:
+    name: Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Check advisories, licences and sources
+        run: cargo deny check
+
+      # deny.toml ignores RUSTSEC-2023-0071 on the grounds that `rsa` is never
+      # compiled in. That premise is checked here, so the ignore cannot quietly
+      # go stale: if `rsa` ever becomes a real dependency, this fails.
+      - name: Assert rsa is unreachable
+        run: |
+          if cargo tree -i rsa -e normal 2>/dev/null | grep -q '^rsa v'; then
+            echo "::error::rsa is now a real dependency — RUSTSEC-2023-0071 applies. Remove the ignore in deny.toml."
+            exit 1
+          fi
+          echo "rsa is not in the compiled dependency graph, as deny.toml assumes."
+
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: server
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

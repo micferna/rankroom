@@ -6,3 +6,5 @@ public/fonts
 package-lock.json
 test-results
 playwright-report
+server/target
+server/Cargo.lock

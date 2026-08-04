@@ -1,0 +1,34 @@
+# Self-hosting RankRoom's backend.
+#
+# This file assumes you already run Postgres and a reverse proxy, which is the
+# common case. `compose.postgres.yaml` adds a database if you do not.
+#
+#   docker compose up -d
+#   docker compose -f compose.yaml -f compose.postgres.yaml up -d   # with Postgres
+
+services:
+  server:
+    build: .
+    image: rankroom-server:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # Bound to loopback: the reverse proxy is what faces the internet.
+      - '127.0.0.1:8080:8080'
+    healthcheck:
+      # The binary is its own health probe — there is no shell in the image.
+      test: ['CMD', '/app/rankroom-server', '--health-check']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'

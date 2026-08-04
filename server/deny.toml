@@ -1,0 +1,45 @@
+# Supply-chain policy for rankroom-server.
+#
+# Run with: cargo deny check
+
+[advisories]
+yanked = "deny"
+
+ignore = [
+  # RUSTSEC-2023-0071 — Marvin timing attack in the `rsa` crate.
+  #
+  # `rsa` reaches the lockfile through sqlx-macros, which lists every driver so
+  # the query macros can target any database. Only the Postgres driver is
+  # enabled here, so `rsa` is never compiled into the binary: `cargo tree -i rsa
+  # -e normal` finds nothing.
+  #
+  # This ignore is not a judgement that the advisory is unimportant — it is a
+  # statement that the code is not reachable. CI asserts that premise on every
+  # run (see the "assert rsa is unreachable" step); the day it stops holding,
+  # the build fails rather than this comment quietly going stale.
+  { id = "RUSTSEC-2023-0071", reason = "rsa is not linked: sqlx's MySQL driver is disabled, asserted in CI" },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[licenses]
+# Permissive licences only — this is meant to be self-hosted and forked freely.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "MPL-2.0",
+  "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

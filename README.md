@@ -175,6 +175,23 @@ slider in the inspector overrides it when you want something else. Tier controls
 single menu rather than a hover-revealed column, which is what let a row drop from 88px to
 56px.
 
+## An optional backend, if you want accounts
+
+Everything above works with no server at all, and that is the default. For the
+three things a browser cannot do alone — an identity that survives a new device,
+public boards other people can open, and **an OBS Browser Source that follows
+your board live** — there is a small self-hostable server in
+[`server/`](server/README.md).
+
+It is Rust, it ships as one container, and it is meant to be run by _you_: there
+is no hosted instance to trust. Sign-in is Twitch OAuth with no scopes
+requested, session tokens are stored hashed, and every board is re-validated
+server-side because the client is not a security boundary. Fourteen
+authorisation tests run against a real Postgres on every commit.
+
+Build the front end with `VITE_API_URL` pointing at your server to enable it.
+Leave it unset and the app has no idea the server exists.
+
 ## Run it locally
 
 ```bash

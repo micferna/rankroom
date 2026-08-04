@@ -8,6 +8,11 @@ All notable changes to RankRoom are recorded here. The format follows
 
 ### Added
 
+- **An optional self-hosted backend** (`server/`, Rust + Axum + Postgres) for
+  Twitch sign-in, boards that follow you across devices, public profile pages, and
+  a **live OBS overlay** — the thing a static site genuinely could not do. The app
+  is unchanged without it: no `VITE_API_URL`, no backend, no difference.
+
 - **Template gallery** — 26 ready-made boards across games, film and TV, music, food,
   brands, internet and everyday life, searchable by template name or by any item inside
   one. Templates can bring their own tier ladder ("Tonight → Never" for fast food), their

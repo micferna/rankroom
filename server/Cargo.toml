@@ -1,0 +1,57 @@
+[package]
+name = "rankroom-server"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "Optional self-hosted backend for RankRoom: Twitch sign-in, saved boards, public profiles and a live OBS overlay."
+repository = "https://github.com/micferna/rankroom"
+publish = false
+
+[dependencies]
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "limit", "trace", "timeout", "set-header"] }
+tower_governor = "0.7"
+futures-util = { version = "0.3", default-features = false }
+async-stream = "0.3"
+
+sqlx = { version = "0.8", default-features = false, features = [
+  "runtime-tokio",
+  "tls-rustls-ring",
+  "postgres",
+  "uuid",
+  "time",
+  "json",
+  "macros",
+  "migrate",
+] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+time = { version = "0.3", features = ["serde"] }
+
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rand = "0.9"
+base64 = "0.22"
+sha2 = "0.10"
+subtle = "2"
+
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+dotenvy = "0.15"
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+# A smaller, faster binary matters on a box someone else is paying for.
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
