@@ -227,6 +227,12 @@ exist on touch at all. Folding them into a single menu button inside the tier sl
 rows to 60px and lifted a 390px screen from four tiles per row to five. Hover-only controls
 are treated as a smell for that reason.
 
+One CSS trap worth remembering, because it bit the template gallery: a grid or flex item
+defaults to `min-width: auto`, so a long line of text sizes the track from its _content_
+rather than its container. Cards measured 491px inside a 350px dialog on a phone. `min-w-0`
+on the item is the fix, and it is worth adding pre-emptively to any grid child holding
+free text.
+
 ## Accessibility
 
 - One focus treatment, applied globally via `:focus-visible`, never removed.
