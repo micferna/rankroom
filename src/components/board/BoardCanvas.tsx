@@ -30,8 +30,8 @@ import { TierRow } from './TierRow'
 import { TileFace } from './Tile'
 
 interface BoardCanvasProps {
-  selectedId: string | null
-  onSelect: (itemId: string | null) => void
+  selection: ReadonlySet<string>
+  onSelectionChange: (selection: ReadonlySet<string>) => void
   onPickFiles: () => void
   onAddTiles: (labels: string[]) => void
   onBrowseTemplates: () => void
@@ -45,8 +45,8 @@ function targetZone(board: Board, overId: string): ZoneId | null {
 }
 
 export function BoardCanvas({
-  selectedId,
-  onSelect,
+  selection,
+  onSelectionChange,
   onPickFiles,
   onAddTiles,
   onBrowseTemplates,
@@ -74,6 +74,30 @@ export function BoardCanvas({
   const [draft, setDraft] = useState<Board | null>(null)
   const [activeId, setActiveId] = useState<ItemId | null>(null)
   const view = draft ?? board
+
+  const select = useCallback(
+    (itemId: string, extend: boolean) => {
+      if (!extend) {
+        // Clicking the only selected tile clears, so there is always a way out.
+        onSelectionChange(
+          selection.size === 1 && selection.has(itemId) ? new Set() : new Set([itemId]),
+        )
+        return
+      }
+
+      const next = new Set(selection)
+      if (next.has(itemId)) next.delete(itemId)
+      else next.add(itemId)
+      onSelectionChange(next)
+    },
+    [selection, onSelectionChange],
+  )
+
+  /** Tiles that travel with a drag: the selection when the dragged tile is in it. */
+  const draggedGroup = useCallback(
+    (itemId: ItemId): ItemId[] => (selection.has(itemId) ? [...selection] : [itemId]),
+    [selection],
+  )
 
   const ghostsByTier = useMemo(() => {
     if (!showGhosts || votes.size === 0) return null
@@ -134,9 +158,12 @@ export function BoardCanvas({
   )
 
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(String(event.active.id))
+    const itemId = String(event.active.id)
+    setActiveId(itemId)
     setDraft(board)
-    onSelect(String(event.active.id))
+    // Dragging an unselected tile makes it the selection; dragging a selected
+    // one keeps the group so the whole thing moves together.
+    if (!selection.has(itemId)) onSelectionChange(new Set([itemId]))
   }
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -166,7 +193,16 @@ export function BoardCanvas({
 
     const zone = zoneOf(settled, itemId)
     if (zone === null) return
-    place(itemId, zone, zoneItemIds(settled, zone).indexOf(itemId))
+
+    const index = zoneItemIds(settled, zone).indexOf(itemId)
+    place(itemId, zone, index)
+
+    // The rest of the selection follows, landing just after the dragged tile in
+    // the order it already had.
+    const followers = draggedGroup(itemId).filter((id) => id !== itemId)
+    followers.forEach((id, offset) => {
+      place(id, zone, index + 1 + offset)
+    })
   }
 
   const activeItem = activeId ? view.items[activeId] : undefined
@@ -204,8 +240,8 @@ export function BoardCanvas({
               tileSize={tileSize}
               items={itemsIn(view, tier.itemIds)}
               ghosts={ghostsByTier?.get(tier.id)}
-              selectedId={selectedId}
-              onSelect={onSelect}
+              selection={selection}
+              onSelect={select}
               onRename={(label) => {
                 updateTier(tier.id, { label })
               }}
@@ -243,8 +279,8 @@ export function BoardCanvas({
           className="sticky bottom-0 mt-2"
           items={itemsIn(view, view.bench)}
           tileSize={tileSize}
-          selectedId={selectedId}
-          onSelect={onSelect}
+          selection={selection}
+          onSelect={select}
           onPickFiles={onPickFiles}
           onAddTiles={onAddTiles}
           onShuffle={shuffle}
@@ -253,8 +289,14 @@ export function BoardCanvas({
 
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2,0.9,0.25,1)' }}>
         {activeItem ? (
-          <div className="rotate-2 scale-105 opacity-95 shadow-2xl shadow-room">
+          <div className="relative rotate-2 scale-105 opacity-95 shadow-2xl shadow-room">
             <TileFace item={activeItem} size={tileSize} />
+            {/* Only one tile follows the pointer, so the count says how many move. */}
+            {selection.size > 1 && selection.has(activeItem.id) ? (
+              <span className="type-mono absolute -top-1.5 -right-1.5 rounded-full bg-preview px-1.5 text-[10px] leading-4 font-bold text-room">
+                {selection.size}
+              </span>
+            ) : null}
           </div>
         ) : null}
       </DragOverlay>

@@ -41,6 +41,10 @@ export interface RenderOptions {
   columns: number
   showLabels: boolean
   watermark: boolean
+  /** Replaces the default credit line. Empty falls back to the RankRoom mark. */
+  credit: string
+  /** Small logo drawn beside the credit; a data URL, like a tile image. */
+  logo?: CanvasImageSource
 }
 
 export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
@@ -50,6 +54,7 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   columns: 10,
   showLabels: true,
   watermark: true,
+  credit: '',
 }
 
 const DISPLAY_FONT = "'Archivo', system-ui, sans-serif"
@@ -339,15 +344,28 @@ function paint(
   }
 
   if (options.watermark) {
+    // The creator's own name wins over ours: an export goes out under their
+    // brand, not the tool's.
+    const credit = options.credit.trim() || 'MADE IN RANKROOM'
+    const baseline = layout.height - layout.footerHeight / 2
+    let right = layout.width - layout.pad
+
+    if (options.logo) {
+      const size = Math.round(layout.footerHeight * 0.62)
+      const source = options.logo as { width?: number; height?: number }
+      const iw = source.width ?? size
+      const ih = source.height ?? size
+      const width = ih > 0 ? Math.round((iw / ih) * size) : size
+
+      ctx.drawImage(options.logo, right - width, baseline - size / 2, width, size)
+      right -= width + Math.round(layout.pad * 0.4)
+    }
+
     ctx.fillStyle = theme.muted
     ctx.font = `500 ${Math.round(layout.width * 0.0105)}px ${MONO_FONT}`
     ctx.textAlign = 'right'
     ctx.textBaseline = 'middle'
-    ctx.fillText(
-      'MADE IN RANKROOM',
-      layout.width - layout.pad,
-      layout.height - layout.footerHeight / 2,
-    )
+    ctx.fillText(fittedText(ctx, credit, layout.width * 0.5), right, baseline)
   }
 }
 
@@ -512,7 +530,7 @@ export async function renderThumbnail(
 
   ctx.fillStyle = theme.muted
   ctx.font = `500 18px ${MONO_FONT}`
-  ctx.fillText(board.subtitle || 'RANKROOM', 72, height - 96)
+  ctx.fillText(board.subtitle || options.credit.trim() || 'RANKROOM', 72, height - 96)
 
   return canvas
 }

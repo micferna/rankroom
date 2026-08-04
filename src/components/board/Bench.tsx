@@ -11,8 +11,8 @@ interface BenchProps {
   className?: string
   items: Item[]
   tileSize: number
-  selectedId: string | null
-  onSelect: (itemId: string) => void
+  selection: ReadonlySet<string>
+  onSelect: (itemId: string, extend: boolean) => void
   onPickFiles: () => void
   onAddTiles: (labels: string[]) => void
   onShuffle: () => void
@@ -23,7 +23,7 @@ export function Bench({
   className,
   items,
   tileSize,
-  selectedId,
+  selection,
   onSelect,
   onPickFiles,
   onAddTiles,
@@ -75,7 +75,7 @@ export function Bench({
               key={item.id}
               item={item}
               size={tileSize}
-              selected={selectedId === item.id}
+              selected={selection.has(item.id)}
               onSelect={onSelect}
             />
           ))}

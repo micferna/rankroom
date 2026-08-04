@@ -63,7 +63,9 @@ export function Studio({ shareToken }: StudioProps) {
   const { importFiles, addTextTiles, pending } = useImageImport()
   useSession(shareToken)
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // A set, not a single id: past ~40 tiles, moving things one at a time is the
+  // slowest part of using the app.
+  const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set())
   const [dropping, setDropping] = useState<'files' | 'folder' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -352,13 +354,15 @@ export function Studio({ shareToken }: StudioProps) {
     Escape: () => {
       setPaletteOpen(false)
       closeDialog()
-      setSelectedId(null)
+      setSelection(new Set())
     },
     Delete: () => {
-      if (selectedId) {
-        removeItem(selectedId)
-        setSelectedId(null)
-      }
+      if (selection.size === 0) return
+      for (const id of selection) removeItem(id)
+      setSelection(new Set())
+    },
+    'mod+a': () => {
+      setSelection(new Set(Object.keys(board.items)))
     },
   })
 
@@ -370,8 +374,8 @@ export function Studio({ shareToken }: StudioProps) {
         {mode === 'edit' ? (
           <>
             <BoardCanvas
-              selectedId={selectedId}
-              onSelect={setSelectedId}
+              selection={selection}
+              onSelectionChange={setSelection}
               onPickFiles={() => fileInputRef.current?.click()}
               onAddTiles={addTextTiles}
               onBrowseTemplates={() => {
@@ -379,12 +383,7 @@ export function Studio({ shareToken }: StudioProps) {
               }}
               onPickFolder={() => folderInputRef.current?.click()}
             />
-            <Inspector
-              selectedId={selectedId}
-              onClearSelection={() => {
-                setSelectedId(null)
-              }}
-            />
+            <Inspector selection={selection} onSelectionChange={setSelection} />
           </>
         ) : null}
         {mode === 'duel' ? <DuelMode /> : null}

@@ -75,6 +75,9 @@ export const fr: Record<keyof typeof en, string> = {
   'drop.decoding': 'Décodage de {count}…',
 
   'inspector.selected': 'Tuile sélectionnée',
+  'inspector.selectedMany': '{count} tuiles sélectionnées',
+  'inspector.removeMany': 'Retirer {count} tuiles',
+  'inspector.moveTo': 'Tout déplacer vers',
   'inspector.clearSelection': 'Désélectionner',
   'inspector.name': 'Nom',
   'inspector.remove': 'Retirer du tableau',
@@ -224,6 +227,13 @@ export const fr: Record<keyof typeof en, string> = {
   'export.saved': 'Image enregistrée.',
   'export.jsonSaved': 'Tableau enregistré en JSON.',
   'export.failed': 'L’image n’a pas pu être générée.',
+
+  'brand.title': 'Ta signature',
+  'brand.credit': 'Nom affiché sur les exports',
+  'brand.creditPlaceholder': 'ta chaîne ou @pseudo',
+  'brand.addLogo': 'Ajouter un logo',
+  'brand.changeLogo': 'Changer le logo',
+  'brand.removeLogo': 'Retirer',
 
   'share.title': 'Partager ce tableau',
   'share.hint': 'Le tableau est encodé dans le lien lui-même. Rien n’est envoyé.',

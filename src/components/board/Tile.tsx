@@ -109,7 +109,8 @@ export const GhostTile = memo(function GhostTile({ item, size, votes, share }: G
 })
 
 interface TileProps extends TileFaceProps {
-  onSelect?: (itemId: string) => void
+  /** `extend` is true when shift or the platform modifier was held. */
+  onSelect?: (itemId: string, extend: boolean) => void
 }
 
 export function Tile({ item, size, selected = false, onSelect, showLabel = true }: TileProps) {
@@ -124,7 +125,8 @@ export function Tile({ item, size, selected = false, onSelect, showLabel = true 
       type="button"
       // The accessible name has to carry the label: the image itself is decorative.
       aria-label={item.label || t('tile.untitled')}
-      onClick={() => onSelect?.(item.id)}
+      aria-selected={selected}
+      onClick={(event) => onSelect?.(item.id, event.shiftKey || event.metaKey || event.ctrlKey)}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,

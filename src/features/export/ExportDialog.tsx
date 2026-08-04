@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '~/components/ui/Button'
-import { Segmented, Slider, Switch } from '~/components/ui/Field'
+import { Field, Segmented, Slider, Switch } from '~/components/ui/Field'
 import { Modal } from '~/components/ui/Modal'
 import { useT } from '~/i18n'
 import { boardFileName, boardToArchive } from '~/lib/boardFile'
@@ -9,7 +9,9 @@ import { errorKey } from '~/lib/errors'
 import { canvasToBlob, renderBoard, renderThumbnail, type RenderOptions } from '~/lib/render'
 import { serializeBoard } from '~/lib/schema'
 import type { MessageKey } from '~/i18n/en'
+import { fileToDataUrl } from '~/lib/image'
 import { useBoardStore } from '~/store/boardStore'
+import { useBrandStore } from '~/store/brandStore'
 import { useUiStore } from '~/store/uiStore'
 
 interface ExportDialogProps {
@@ -28,6 +30,10 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const board = useBoardStore((state) => state.board)
   const theme = useUiStore((state) => state.theme)
   const notify = useUiStore((state) => state.notify)
+  const credit = useBrandStore((state) => state.credit)
+  const logo = useBrandStore((state) => state.logo)
+  const setCredit = useBrandStore((state) => state.setCredit)
+  const setLogo = useBrandStore((state) => state.setLogo)
 
   const [options, setOptions] = useState<RenderOptions>(() => ({
     width: 1600,
@@ -36,9 +42,42 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
     columns: 10,
     showLabels: true,
     watermark: true,
+    credit: '',
   }))
   const [preview, setPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [logoImage, setLogoImage] = useState<CanvasImageSource | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  // The stored logo is a data URL; the renderer wants something drawable.
+  useEffect(() => {
+    let cancelled = false
+
+    if (!logo) {
+      // Async so the reset is not a synchronous setState inside the effect.
+      queueMicrotask(() => {
+        if (!cancelled) setLogoImage(null)
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+
+    void fetch(logo)
+      .then((response) => response.blob())
+      .then(createImageBitmap)
+      .then((bitmap) => {
+        if (cancelled) bitmap.close()
+        else setLogoImage(bitmap)
+      })
+      .catch(() => {
+        if (!cancelled) setLogoImage(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [logo])
 
   const patch = (next: Partial<RenderOptions>) => {
     setOptions((current) => ({ ...current, ...next }))
@@ -46,9 +85,14 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
   // Previews render at a fraction of the export width: the layout is identical,
   // so a small render is an accurate proof without the encoding cost.
+  const branded = useMemo<RenderOptions>(
+    () => ({ ...options, credit, ...(logoImage ? { logo: logoImage } : {}) }),
+    [options, credit, logoImage],
+  )
+
   const previewOptions = useMemo<Partial<RenderOptions>>(
-    () => ({ ...options, width: 720 }),
-    [options],
+    () => ({ ...branded, width: 720 }),
+    [branded],
   )
 
   useEffect(() => {
@@ -81,7 +125,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
     setBusy(true)
     try {
       const canvas =
-        kind === 'board' ? await renderBoard(board, options) : await renderThumbnail(board, options)
+        kind === 'board' ? await renderBoard(board, branded) : await renderThumbnail(board, branded)
       const blob = await canvasToBlob(canvas)
       downloadBlob(
         blob,
@@ -235,6 +279,69 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               checked={options.watermark}
               onChange={(watermark) => {
                 patch({ watermark })
+              }}
+            />
+          </div>
+
+          <div className="border-t border-edge pt-3">
+            <p className="slug mb-2">{t('brand.title')}</p>
+            <Field
+              label={t('brand.credit')}
+              quietLabel
+              placeholder={t('brand.creditPlaceholder')}
+              value={credit}
+              maxLength={60}
+              disabled={!options.watermark}
+              onChange={(event) => {
+                setCredit(event.target.value)
+              }}
+            />
+
+            <div className="mt-2 flex items-center gap-2">
+              {logo ? (
+                <img
+                  src={logo}
+                  alt=""
+                  className="size-8 shrink-0 rounded-control border border-edge object-contain"
+                />
+              ) : null}
+              <Button
+                size="sm"
+                icon="image"
+                disabled={!options.watermark}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                {logo ? t('brand.changeLogo') : t('brand.addLogo')}
+              </Button>
+              {logo ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="close"
+                  onClick={() => {
+                    setLogo(null)
+                  }}
+                >
+                  {t('brand.removeLogo')}
+                </Button>
+              ) : null}
+            </div>
+
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (!file) return
+
+                void fileToDataUrl(file)
+                  .then(setLogo)
+                  .catch((error: unknown) => {
+                    notify(t(errorKey(error, 'image.damaged')), 'bad')
+                  })
               }}
             />
           </div>

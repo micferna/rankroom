@@ -13,10 +13,10 @@ interface TierRowProps {
   tier: Tier
   items: Item[]
   tileSize: number
-  selectedId: string | null
+  selection: ReadonlySet<string>
   /** Where chat would put items in this tier, drawn as a translucent layer. */
   ghosts?: { placement: CrowdPlacement; item: Item }[]
-  onSelect: (itemId: string) => void
+  onSelect: (itemId: string, extend: boolean) => void
   onRename: (label: string) => void
   onRecolor: (color: string) => void
   onRemove: () => void
@@ -30,7 +30,7 @@ export function TierRow({
   tier,
   items,
   tileSize,
-  selectedId,
+  selection,
   ghosts,
   onSelect,
   onRename,
@@ -125,7 +125,7 @@ export function TierRow({
               key={item.id}
               item={item}
               size={tileSize}
-              selected={selectedId === item.id}
+              selected={selection.has(item.id)}
               onSelect={onSelect}
             />
           ))}

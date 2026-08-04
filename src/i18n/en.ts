@@ -80,6 +80,9 @@ export const en = {
   'drop.decoding': 'Decoding {count}…',
 
   'inspector.selected': 'Selected tile',
+  'inspector.selectedMany': '{count} tiles selected',
+  'inspector.removeMany': 'Remove {count} tiles',
+  'inspector.moveTo': 'Move all to',
   'inspector.clearSelection': 'Clear selection',
   'inspector.name': 'Name',
   'inspector.remove': 'Remove from board',
@@ -228,6 +231,13 @@ export const en = {
   'export.saved': 'Image saved.',
   'export.jsonSaved': 'Board saved as JSON.',
   'export.failed': 'The image could not be rendered.',
+
+  'brand.title': 'Your credit',
+  'brand.credit': 'Name shown on exports',
+  'brand.creditPlaceholder': 'your channel or @handle',
+  'brand.addLogo': 'Add a logo',
+  'brand.changeLogo': 'Change logo',
+  'brand.removeLogo': 'Remove',
 
   'share.title': 'Share this board',
   'share.hint': 'The board is encoded into the link itself. Nothing is uploaded.',

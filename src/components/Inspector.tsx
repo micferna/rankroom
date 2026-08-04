@@ -6,20 +6,21 @@ import { useTileSize } from '~/hooks/useViewport'
 import { useT } from '~/i18n'
 import { itemCount, rankedCount } from '~/lib/board'
 import { cx } from '~/lib/cx'
-import { paletteById } from '~/lib/palette'
+import { paletteById, readableInk } from '~/lib/palette'
 import { useBoardStore } from '~/store/boardStore'
 import { useUiStore } from '~/store/uiStore'
+import { BENCH } from '~/types'
 
 interface InspectorProps {
-  selectedId: string | null
-  onClearSelection: () => void
+  selection: ReadonlySet<string>
+  onSelectionChange: (selection: ReadonlySet<string>) => void
 }
 
 /**
  * The right-hand rail on a desktop; a collapsed drawer on a phone, where the
  * board itself has to own the screen.
  */
-export function Inspector({ selectedId, onClearSelection }: InspectorProps) {
+export function Inspector({ selection, onSelectionChange }: InspectorProps) {
   const t = useT()
   const board = useBoardStore((state) => state.board)
   const setSubtitle = useBoardStore((state) => state.setSubtitle)
@@ -35,13 +36,88 @@ export function Inspector({ selectedId, onClearSelection }: InspectorProps) {
 
   const [open, setOpen] = useState(false)
 
-  const selected = selectedId ? board.items[selectedId] : undefined
+  const place = useBoardStore((state) => state.place)
+
+  const clearSelection = () => {
+    onSelectionChange(new Set())
+  }
+
+  const ids = [...selection].filter((id) => id in board.items)
+  const selected = ids.length === 1 ? board.items[ids[0] ?? ''] : undefined
+
+  const moveSelection = (tierId: string) => {
+    const tier = board.tiers.find((candidate) => candidate.id === tierId)
+    if (!tier) return
+    // Placed one after another so the group keeps its relative order.
+    ids.forEach((id, offset) => {
+      place(id, tierId, tier.itemIds.length + offset)
+    })
+    clearSelection()
+  }
+
+  const removeSelection = () => {
+    for (const id of ids) removeItem(id)
+    clearSelection()
+  }
   const total = itemCount(board)
   const ranked = rankedCount(board)
 
   return (
     <aside className="flex w-full shrink-0 flex-col gap-2 lg:w-64">
       {/* The selected tile is the one panel worth showing unprompted on mobile. */}
+      {ids.length > 1 ? (
+        <section className="panel animate-rise p-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <p className="slug">{t('inspector.selectedMany', { count: ids.length })}</p>
+            <IconButton
+              icon="close"
+              label={t('inspector.clearSelection')}
+              size="sm"
+              onClick={clearSelection}
+            />
+          </div>
+
+          <p className="slug mt-2 mb-1">{t('inspector.moveTo')}</p>
+          <div className="flex flex-wrap gap-1">
+            {board.tiers.map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={() => {
+                  moveSelection(tier.id)
+                }}
+                className="type-display grid size-7 place-items-center rounded-[3px] text-xs transition-transform hover:-translate-y-0.5"
+                style={{ backgroundColor: tier.color, color: readableInk(tier.color) }}
+              >
+                {tier.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                ids.forEach((id, offset) => {
+                  place(id, BENCH, offset)
+                })
+                clearSelection()
+              }}
+              className="rounded-[3px] border border-edge px-2 text-[10px] text-slate transition-colors hover:text-chalk"
+            >
+              {t('bench.title')}
+            </button>
+          </div>
+
+          <Button
+            variant="danger"
+            icon="trash"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={removeSelection}
+          >
+            {t('inspector.removeMany', { count: ids.length })}
+          </Button>
+        </section>
+      ) : null}
+
       {selected ? (
         <section className="panel animate-rise p-2.5">
           <div className="flex items-start justify-between gap-2">
@@ -50,7 +126,7 @@ export function Inspector({ selectedId, onClearSelection }: InspectorProps) {
               icon="close"
               label={t('inspector.clearSelection')}
               size="sm"
-              onClick={onClearSelection}
+              onClick={clearSelection}
             />
           </div>
 
@@ -74,7 +150,7 @@ export function Inspector({ selectedId, onClearSelection }: InspectorProps) {
               size="sm"
               onClick={() => {
                 removeItem(selected.id)
-                onClearSelection()
+                clearSelection()
               }}
             />
           </div>
