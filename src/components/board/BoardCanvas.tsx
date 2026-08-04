@@ -17,13 +17,13 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { restrictToWindowEdges } from '@dnd-kit/modifiers'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useCallback, useMemo, useState } from 'react'
 import { Button } from '~/components/ui/Button'
 import { useTileSize } from '~/hooks/useViewport'
 import { useT } from '~/i18n'
 import { itemsIn, moveItem } from '~/lib/board'
 import { finalDrop, overZone, previewDrop } from '~/lib/dnd'
+import { boardKeyboardCoordinates } from '~/lib/dndKeyboard'
 import { crowdGhosts, type CrowdPlacement } from '~/lib/crowd'
 import { selectTally, useCrowdStore } from '~/store/crowdStore'
 import { useBoardStore } from '~/store/boardStore'
@@ -138,7 +138,7 @@ export function BoardCanvas({
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     // A short hold before dragging leaves room for scrolling a long bench by touch.
     useSensor(TouchSensor, { activationConstraint: { delay: 160, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter: boardKeyboardCoordinates }),
   )
 
   const zoneName = useCallback(

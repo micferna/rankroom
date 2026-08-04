@@ -30,7 +30,10 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run preview -- --port 5174 --strictPort',
+    // --host is load-bearing: without it Vite binds `localhost`, which resolves
+    // to ::1 first on CI runners while Playwright polls 127.0.0.1, and the wait
+    // simply times out. It works locally, which is what makes it easy to miss.
+    command: 'npm run preview -- --port 5174 --strictPort --host 127.0.0.1',
     url: 'http://127.0.0.1:5174',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

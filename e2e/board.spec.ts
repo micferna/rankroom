@@ -70,22 +70,26 @@ test.describe('the board', () => {
     await useFirstTemplate(page)
 
     const bench = page.getByRole('region', { name: 'Bench' })
-    const mario = bench.getByRole('button', { name: 'Mario', exact: true })
-    await mario.focus()
+    const inBench = bench.getByRole('button', { name: 'Mario', exact: true })
+    const live = page.locator('[aria-live]').first()
 
+    await inBench.focus()
     await page.keyboard.press('Space')
+    await expect(live).toContainText(/over the bench/i)
 
-    // The bench wraps, so the first presses may only move within it. Walk up
-    // until dnd-kit announces a tier, which is what a keyboard user does too.
-    const live = page.locator('[aria-live]')
-    for (let i = 0; i < 8; i += 1) {
-      if (/tier/i.test((await live.first().textContent()) ?? '')) break
+    // Up steps between tiers, so one press normally suffices — but dnd-kit
+    // measures the zones asynchronously and swallows a press that lands too
+    // early. Pressing until it moves is both what a user does and what makes
+    // this deterministic.
+    for (let attempt = 0; attempt < 8; attempt += 1) {
       await page.keyboard.press('ArrowUp')
+      if ((await inBench.count()) === 0) break
+      await page.waitForTimeout(100)
     }
+    await expect(inBench).toHaveCount(0)
+
     await page.keyboard.press('Space')
 
-    // The property that matters: it left the bench for a tier, whichever one.
-    await expect(bench.getByRole('button', { name: 'Mario', exact: true })).toBeHidden()
     await expect(
       page
         .getByRole('region', { name: /^Tier/ })

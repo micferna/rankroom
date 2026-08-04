@@ -6,6 +6,7 @@ import type { CrowdPlacement } from '~/lib/crowd'
 import { cx } from '~/lib/cx'
 import { readableInk, tint } from '~/lib/palette'
 import type { TierSort } from '~/lib/board'
+import { ZONE_DATA } from '~/lib/dndKeyboard'
 import type { Item, Tier } from '~/types'
 import { TierMenu } from './TierMenu'
 import { GhostTile, Tile } from './Tile'
@@ -45,7 +46,7 @@ export function TierRow({
   canRemove,
 }: TierRowProps) {
   const t = useT()
-  const { setNodeRef, isOver } = useDroppable({ id: tier.id })
+  const { setNodeRef, isOver } = useDroppable({ id: tier.id, data: ZONE_DATA })
   const [editing, setEditing] = useState(false)
 
   // The slug tracks the tile scale so a small board stays proportional.

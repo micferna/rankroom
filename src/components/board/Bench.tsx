@@ -3,6 +3,7 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 import { Button } from '~/components/ui/Button'
 import { useT } from '~/i18n'
 import { cx } from '~/lib/cx'
+import { ZONE_DATA } from '~/lib/dndKeyboard'
 import { BENCH, type Item } from '~/types'
 import { AddTiles } from './AddTiles'
 import { Tile } from './Tile'
@@ -30,7 +31,7 @@ export function Bench({
   onShuffle,
 }: BenchProps) {
   const t = useT()
-  const { setNodeRef, isOver } = useDroppable({ id: BENCH })
+  const { setNodeRef, isOver } = useDroppable({ id: BENCH, data: ZONE_DATA })
 
   return (
     <section

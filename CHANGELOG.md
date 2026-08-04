@@ -47,6 +47,11 @@ All notable changes to RankRoom are recorded here. The format follows
   `closestCorners` could pick a tile in another row over the one under the pointer, and
   reordering inside a zone fed back on itself so a tile became stuck in the first slot it
   landed in. The placement decision now lives in `src/lib/dnd.ts`, covered by tests.
+- **A tile could not be moved into an empty tier with the keyboard at all.**
+  dnd-kit navigates between sortable _items_, so on a fresh board — where every tier is
+  empty — there was nothing above to reach. Up and down now step between rows, left and
+  right reorder within one, which is also the better model for a tier list. Found by the
+  new browser tests, not by hand.
 - **The replay exported WebM, which TikTok, Instagram and X all reject.** MP4 is preferred
   where the browser really supports it, which is Chrome 130+ and Safari.
 - **Duel runs no longer evaporate.** The state lived in the component, so leaving the tab
