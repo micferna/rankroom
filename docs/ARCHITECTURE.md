@@ -100,6 +100,11 @@ an item or tier that no longer exists.
 winning tier differs from where the streamer put it. Agreement produces no ghost, which is
 what keeps the layer readable: everything translucent on screen is a difference of opinion.
 
+**The replay ending.** `crowdGhosts` also feeds the replay: after the placements finish,
+the ghost layer fades in over the finished board and the hardest disagreement is ringed.
+The ghosts occupy real cells, so `layoutBoard` is given them too — otherwise the board
+grows during the reveal and overflows the frame it was scaled for.
+
 **Who decides.** Nothing chat says moves a tile. The streamer accepts the crowd's pick for
 the tile on deck, or applies the whole crowd ranking through the same `applyRanking` path
 duel mode uses. That is a product decision as much as a technical one: the streamer stays
@@ -158,6 +163,29 @@ The replay itself is reconstructed, not recorded. `buildTimeline` replays the mo
 forward from an empty board, which keeps the log tiny and guarantees the video ends on the
 board you actually have. `recordReplay` then drives that timeline in real time through
 `canvas.captureStream()` into `MediaRecorder`.
+
+## Files
+
+`src/lib/archive.ts` is a ZIP reader and writer in about a hundred lines. It exists rather
+than a dependency because `CompressionStream` — already carrying share links — is the hard
+part of ZIP; what remained was header layout, against ~100 KB of JSZip for a format we both
+produce and consume.
+
+`src/lib/boardFile.ts` sits on top with two formats. `.json` inlines images as data URLs:
+readable, diffable, hand-editable. `.rankroom` is a zip of `board.json` plus `images/`
+named after each tile, so unzipping gives your pictures back as pictures. The archive wins
+on size above roughly 500 bytes an image — base64 costs 33%, ZIP about 150 bytes a file —
+which is every real tile and no 1×1 pixel. Both bounds are pinned by tests, after the first
+version of that test caught the claim being overstated.
+
+Reading sniffs the leading bytes rather than trusting the extension, and an archived board
+is folded back into a plain board _before_ `parseBoard` sees it, so a file gets exactly the
+same scrutiny as a share link.
+
+`src/lib/files.ts` handles folder drops. `DataTransfer.files` is empty for a directory, so
+"drag your covers folder in" needs the non-standard `webkitGetAsEntry` walk — feature
+detected once, because TypeScript's DOM lib claims it is always there and that is not true
+of every engine.
 
 ## Storage
 

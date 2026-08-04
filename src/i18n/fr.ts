@@ -164,6 +164,9 @@ export const fr: Record<keyof typeof en, string> = {
   'replay.frame': 'Cadre',
   'replay.format': 'Format vidéo',
   'replay.summary': '{moves} placements · {seconds}s · {size}',
+  'replay.withCrowd': 'Finir sur le verdict de la commu',
+  'replay.withCrowdHint':
+    'Les choix du chat apparaissent sur ton tableau, le plus gros désaccord entouré',
   'replay.export': 'Export',
   'replay.record': 'Enregistrer la vidéo',
   'replay.recording': 'Enregistrement {percent}%',

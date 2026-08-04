@@ -1,13 +1,28 @@
 import type { Board, ItemId, Move } from '~/types'
 import { moveItem, resetPlacements } from './board'
 import { RankRoomError } from './errors'
-import { measureBoard, paintBoardTo, preloadImages, type RenderOptions } from './render'
+import {
+  measureBoard,
+  paintBoardTo,
+  preloadImages,
+  type GhostCell,
+  type PaintExtras,
+  type RenderOptions,
+} from './render'
 
 /**
  * A replay turns the session's move log back into video: every placement lands
  * again, in order, on a canvas. That canvas is captured with MediaRecorder, so
  * the export is a real WebM a creator can drop straight onto a timeline.
  */
+
+/** The audience layer to reveal after the placements have finished. */
+export interface CrowdReveal {
+  /** Ghost cells per tier id, as `crowdGhosts` produces them. */
+  ghosts: ReadonlyMap<string, readonly GhostCell[]>
+  /** The item the crowd disagreed with hardest, ringed during the reveal. */
+  spotlight: ItemId | null
+}
 
 export interface ReplayOptions {
   /** Milliseconds each placement is on screen. */
@@ -16,6 +31,11 @@ export interface ReplayOptions {
   format: 'wide' | 'tall'
   fps: number
   render: Partial<RenderOptions>
+  /**
+   * Appends a "here is what chat thought" ending. Nobody else can make this
+   * clip, which is rather the point of putting it in the export.
+   */
+  crowd?: CrowdReveal
 }
 
 export const DEFAULT_REPLAY_OPTIONS: ReplayOptions = {
@@ -27,6 +47,10 @@ export const DEFAULT_REPLAY_OPTIONS: ReplayOptions = {
 
 /** Held on the finished board so the last frame is not a hard cut. */
 const OUTRO_MS = 1200
+/** Length of the crowd reveal that follows, when there is one. */
+const CROWD_MS = 2600
+/** How long the ghost layer takes to fade in at the start of that reveal. */
+const CROWD_FADE_MS = 700
 
 export interface ReplayTimeline {
   /**
@@ -35,7 +59,10 @@ export interface ReplayTimeline {
    */
   states: readonly [Board, ...Board[]]
   moves: readonly Move[]
+  /** Where the placements end and the crowd reveal begins. */
+  placementMs: number
   durationMs: number
+  crowd?: CrowdReveal
 }
 
 /**
@@ -48,6 +75,7 @@ export function buildTimeline(
   finalBoard: Board,
   moves: readonly Move[],
   stepMs: number,
+  crowd?: CrowdReveal,
 ): ReplayTimeline {
   let current = resetPlacements(finalBoard)
   const states: [Board, ...Board[]] = [current]
@@ -57,7 +85,16 @@ export function buildTimeline(
     states.push(current)
   }
 
-  return { states, moves, durationMs: moves.length * stepMs + OUTRO_MS }
+  const placementMs = moves.length * stepMs + OUTRO_MS
+  const hasCrowd = crowd !== undefined && crowd.ghosts.size > 0
+
+  return {
+    states,
+    moves,
+    placementMs,
+    durationMs: placementMs + (hasCrowd ? CROWD_MS : 0),
+    ...(hasCrowd ? { crowd } : {}),
+  }
 }
 
 function easeOutBack(t: number): number {
@@ -67,22 +104,47 @@ function easeOutBack(t: number): number {
 
 export interface ReplayFrame {
   board: Board
-  highlight: { itemId: ItemId; emphasis: number } | null
+  extras: PaintExtras
 }
 
-/** The board and pop intensity to draw at `timeMs` into the replay. */
+/** The board and the layers to draw at `timeMs` into the replay. */
 export function frameAt(timeline: ReplayTimeline, timeMs: number, stepMs: number): ReplayFrame {
+  const final = timeline.states[timeline.states.length - 1] ?? timeline.states[0]
+
+  // Past the placements, the crowd layer fades in over the finished board.
+  if (timeline.crowd && timeMs >= timeline.placementMs) {
+    const into = timeMs - timeline.placementMs
+    const ghostOpacity = Math.min(1, into / CROWD_FADE_MS)
+
+    return {
+      board: final,
+      extras: {
+        ghosts: timeline.crowd.ghosts,
+        ghostOpacity,
+        // The callout waits until the layer is readable.
+        ...(timeline.crowd.spotlight && ghostOpacity > 0.9
+          ? { spotlight: timeline.crowd.spotlight }
+          : {}),
+      },
+    }
+  }
+
   const index = Math.min(timeline.moves.length, Math.max(0, Math.floor(timeMs / stepMs)))
   const board = timeline.states[index] ?? timeline.states[0]
 
   const move = timeline.moves[index - 1]
-  if (!move) return { board, highlight: null }
+  if (!move) return { board, extras: {} }
 
-  // The tile that landed at the start of this step decays back to flat.
-  const within = Math.min(1, (timeMs - (index - 1) * stepMs) / stepMs)
+  // The tile landed when *this* step began, so the decay is measured from
+  // `index * stepMs`. Measuring from the previous step left `within` at 1 for
+  // the whole window, which meant the pop never rendered at all.
+  const within = Math.min(1, Math.max(0, (timeMs - index * stepMs) / stepMs))
   const emphasis = Math.max(0, 1 - easeOutBack(Math.min(1, within * 1.6)))
 
-  return { board, highlight: emphasis > 0.01 ? { itemId: move.itemId, emphasis } : null }
+  return {
+    board,
+    extras: emphasis > 0.01 ? { highlight: { itemId: move.itemId, emphasis } } : {},
+  }
 }
 
 interface Stage {
@@ -93,7 +155,9 @@ interface Stage {
 
 function createStage(board: Board, options: ReplayOptions): Stage {
   const render: Partial<RenderOptions> = { width: 1440, watermark: true, ...options.render }
-  const natural = measureBoard(board, render)
+  // Measured with the ghosts in place: they take real cells, so a board that
+  // grows during the crowd reveal must not overflow the frame it was scaled for.
+  const natural = measureBoard(board, render, options.crowd ? { ghosts: options.crowd.ghosts } : {})
 
   const output =
     options.format === 'tall' ? { width: 1080, height: 1920 } : { width: 1600, height: 900 }
@@ -118,13 +182,7 @@ function createStage(board: Board, options: ReplayOptions): Stage {
     ctx.fillStyle = render.theme === 'daylight' ? '#EDF1F7' : '#0A0C10'
     ctx.fillRect(0, 0, output.width, output.height)
     ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY)
-    paintBoardTo(
-      ctx,
-      frame.board,
-      render,
-      images,
-      frame.highlight ? { highlight: frame.highlight } : {},
-    )
+    paintBoardTo(ctx, frame.board, render, images, frame.extras)
   }
 
   return { canvas, draw }
@@ -170,7 +228,7 @@ export async function recordReplay(
   const options = { ...DEFAULT_REPLAY_OPTIONS, ...overrides }
   if (moves.length === 0) throw new RankRoomError('error.replay.empty')
 
-  const timeline = buildTimeline(board, moves, options.stepMs)
+  const timeline = buildTimeline(board, moves, options.stepMs, options.crowd)
   const images = await preloadImages(board)
   const stage = createStage(board, options)
 

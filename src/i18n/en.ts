@@ -169,6 +169,9 @@ export const en = {
   'replay.frame': 'Frame',
   'replay.format': 'Video format',
   'replay.summary': '{moves} placements · {seconds}s · {size}',
+  'replay.withCrowd': 'End on the crowd’s verdict',
+  'replay.withCrowdHint':
+    'Chat’s picks fade in over your board, with the biggest disagreement ringed',
   'replay.export': 'Export',
   'replay.record': 'Record video',
   'replay.recording': 'Recording {percent}%',

@@ -107,12 +107,18 @@ next to yours.
 _Above: chat put **Nope** in S with five votes, so it shows as a dashed, translucent ghost —
 while the streamer's own placements stay solid._
 
-### 🎬 Exportable replays
+### 🎬 Exportable replays, ending on the crowd's verdict
 
 Every placement is logged as you make it. Replay mode plays the session back on a canvas
 and records that canvas to a real video file — **16:9 for YouTube, 9:16 for Shorts,
 Reels and TikTok**. The ranking assembling itself in fast-forward is the clip; you didn't
 have to screen-record anything.
+
+When chat has voted, the replay can **end on their verdict**: the ghost layer fades in over
+your finished board and the single biggest disagreement is ringed in red. Below, the
+streamer put Zelda in S — chat put it in F.
+
+<img src="docs/media/crowd-replay.png" alt="The replay ending with chat's picks faded in, the biggest disagreement ringed" width="100%" />
 
 ### 🔍 Compare two rankings
 
@@ -129,7 +135,7 @@ takes**: the items you are furthest apart on. That list is the video.
 - **Drop or paste images anywhere** on the page. They are re-encoded to small WebP, which
   strips EXIF — including the GPS coordinates you did not mean to publish.
 - **Export** a PNG at three sizes, a ready-made **1280×720 thumbnail** built from your top
-  tier, or the raw `.json`.
+  tier, the raw `.json`, or a `.rankroom` archive that keeps images as real files.
 - **Share links carry the whole board in the URL fragment.** Fragments are never sent to a
   server, so nobody — including GitHub Pages — sees what you ranked. The link keeps working
   even if this site disappears.

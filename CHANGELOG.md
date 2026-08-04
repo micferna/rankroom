@@ -15,8 +15,27 @@ All notable changes to RankRoom are recorded here. The format follows
   current bench. All text, no bundled artwork.
 - The empty board now leads with the gallery rather than with a file picker.
 
+- **Multi-select** — shift or ⌘/Ctrl-click extends the selection, ⌘A takes everything.
+  Dragging a selected tile moves the whole group, and the inspector becomes a bulk panel:
+  move them all to a tier or the bench, or remove them together.
+- **Your own credit on exports** — free text plus an optional logo, replacing the fixed
+  RankRoom mark. Stored per creator rather than per board.
+- **Open a board file** — `.json` or `.rankroom`, from the shelf, the command palette, or
+  by dropping it on the page. Content is sniffed rather than trusted from the extension.
+- **`.rankroom` archives** — a zip of `board.json` plus `images/` named after each tile.
+  Roughly a quarter smaller than the JSON for real images, and unzippable.
+- **Drop a whole folder** of images, or pick one. Entries are sorted naturally, so
+  `01-…`, `02-…` land in the order they were numbered.
+- **The replay can end on the crowd's verdict** — chat's picks fade in over the finished
+  board with the biggest disagreement ringed in red.
+
 ### Fixed
 
+- **Duel runs no longer evaporate.** The state lived in the component, so leaving the tab
+  mid-run threw away every answer. It survives now, and an in-progress run has a visible
+  way out.
+- **The replay's landing pop never rendered.** The decay was measured from the previous
+  step, leaving it fully decayed before its own window began.
 - `<html lang>` was only updated when the locale changed, so a first visit from a French
   browser still announced the page as English to assistive technology.
 

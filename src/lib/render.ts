@@ -60,10 +60,24 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
 const DISPLAY_FONT = "'Archivo', system-ui, sans-serif"
 const MONO_FONT = "'Martian Mono', ui-monospace, monospace"
 
+/** Where the crowd would put an item, drawn translucent beside the real tiles. */
+export interface GhostCell {
+  itemId: ItemId
+  votes: number
+  /** Share of that item's votes the winning tier took, 0–1. */
+  share: number
+}
+
 /** Extra painting instructions layered on top of a plain board render. */
 export interface PaintExtras {
   /** Tile to pop, and how hard (0 = flat, 1 = full pop). Used by the replay. */
   highlight?: { itemId: ItemId; emphasis: number }
+  /** Crowd placements per tier id. They occupy real cells, so they are laid out. */
+  ghosts?: ReadonlyMap<string, readonly GhostCell[]>
+  /** Fades the whole ghost layer in, 0–1. */
+  ghostOpacity?: number
+  /** Item to ring as the biggest disagreement. */
+  spotlight?: ItemId
 }
 
 interface Cell {
@@ -79,6 +93,8 @@ interface Row {
   y: number
   height: number
   cells: Cell[]
+  /** Cells for the crowd layer, laid out after the real tiles in the same row. */
+  ghostCells: (Cell & { votes: number; share: number })[]
 }
 
 interface Layout {
@@ -104,35 +120,55 @@ function metrics(options: RenderOptions) {
   return { pad, gutter, slugWidth, columns, tileSize }
 }
 
-function layoutBoard(board: Board, options: RenderOptions): Layout {
+function layoutBoard(board: Board, options: RenderOptions, extras: PaintExtras = {}): Layout {
   const { pad, gutter, slugWidth, columns, tileSize } = metrics(options)
   const headerHeight = Math.round(pad * 2 + options.width * 0.062)
   const footerHeight = options.watermark ? Math.round(options.width * 0.034) : pad
 
-  const groups = board.tiers.map((tier) => ({
+  const groups: {
+    label: string
+    color: string
+    itemIds: readonly ItemId[]
+    ghosts: readonly GhostCell[]
+  }[] = board.tiers.map((tier) => ({
     label: tier.label,
     color: tier.color,
     itemIds: tier.itemIds,
+    ghosts: extras.ghosts?.get(tier.id) ?? [],
   }))
+
   if (options.includeBench && board.bench.length > 0) {
-    groups.push({ label: 'BENCH', color: THEMES[options.theme].edge, itemIds: board.bench })
+    groups.push({
+      label: 'BENCH',
+      color: THEMES[options.theme].edge,
+      itemIds: board.bench,
+      ghosts: [],
+    })
   }
 
   const rows: Row[] = []
   let y = headerHeight
 
   for (const group of groups) {
-    const lines = Math.max(1, Math.ceil(group.itemIds.length / columns))
+    const total = group.itemIds.length + group.ghosts.length
+    const lines = Math.max(1, Math.ceil(total / columns))
     const height = lines * (tileSize + gutter) + gutter
 
-    const cells = group.itemIds.map((itemId, index) => ({
-      itemId,
+    const cellAt = (index: number) => ({
       x: pad + slugWidth + gutter + (index % columns) * (tileSize + gutter),
       y: y + gutter + Math.floor(index / columns) * (tileSize + gutter),
       size: tileSize,
+    })
+
+    const cells = group.itemIds.map((itemId, index) => ({ itemId, ...cellAt(index) }))
+    const ghostCells = group.ghosts.map((ghost, index) => ({
+      itemId: ghost.itemId,
+      votes: ghost.votes,
+      share: ghost.share,
+      ...cellAt(group.itemIds.length + index),
     }))
 
-    rows.push({ label: group.label, color: group.color, y, height, cells })
+    rows.push({ label: group.label, color: group.color, y, height, cells, ghostCells })
     y += height + gutter
   }
 
@@ -258,6 +294,65 @@ function drawTile(
   ctx.restore()
 }
 
+/**
+ * A crowd placement: the same tile at half strength, dashed, with its vote count.
+ * Translucency is the whole point — on camera it has to read as a suggestion
+ * next to the streamer's decision, with no legend needed.
+ */
+function drawGhost(
+  ctx: CanvasRenderingContext2D,
+  cell: Cell & { votes: number; share: number },
+  board: Board,
+  images: ReadonlyMap<ItemId, CanvasImageSource>,
+  options: RenderOptions,
+  theme: RenderTheme,
+  alpha: number,
+  spotlit: boolean,
+): void {
+  const radius = Math.max(3, cell.size * 0.07)
+
+  ctx.save()
+  ctx.globalAlpha = alpha * 0.5
+  drawTile(ctx, cell, board, images, { ...options, showLabels: false }, theme)
+  ctx.restore()
+
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = spotlit ? '#FF2E38' : tint(theme.ink, 0.55)
+  ctx.lineWidth = Math.max(1.5, cell.size * (spotlit ? 0.05 : 0.03))
+  ctx.setLineDash([cell.size * 0.12, cell.size * 0.08])
+  roundRect(ctx, cell.x + 1, cell.y + 1, cell.size - 2, cell.size - 2, radius)
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  // Vote count in the corner, and a bar for how solid the majority was.
+  const badge = Math.round(cell.size * 0.3)
+  ctx.fillStyle = theme.bg
+  ctx.beginPath()
+  ctx.arc(
+    cell.x + cell.size - badge * 0.4,
+    cell.y + cell.size - badge * 0.4,
+    badge * 0.5,
+    0,
+    Math.PI * 2,
+  )
+  ctx.fill()
+
+  ctx.fillStyle = theme.ink
+  ctx.font = `700 ${Math.round(cell.size * 0.2)}px ${MONO_FONT}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(
+    String(cell.votes),
+    cell.x + cell.size - badge * 0.4,
+    cell.y + cell.size - badge * 0.36,
+  )
+
+  ctx.fillStyle = '#22DD8A'
+  ctx.fillRect(cell.x + 2, cell.y + cell.size - 4, (cell.size - 4) * cell.share, 2)
+  ctx.restore()
+}
+
 function paint(
   ctx: CanvasRenderingContext2D,
   board: Board,
@@ -341,6 +436,22 @@ function paint(
       const emphasis = extras.highlight?.itemId === cell.itemId ? extras.highlight.emphasis : 0
       drawTile(ctx, cell, board, images, options, theme, emphasis)
     }
+
+    const ghostAlpha = extras.ghostOpacity ?? 1
+    if (row.ghostCells.length > 0 && ghostAlpha > 0.01) {
+      for (const cell of row.ghostCells) {
+        drawGhost(
+          ctx,
+          cell,
+          board,
+          images,
+          options,
+          theme,
+          ghostAlpha,
+          extras.spotlight === cell.itemId,
+        )
+      }
+    }
   }
 
   if (options.watermark) {
@@ -392,8 +503,9 @@ export async function preloadImages(board: Board): Promise<Map<ItemId, CanvasIma
 export function measureBoard(
   board: Board,
   overrides: Partial<RenderOptions> = {},
+  extras: PaintExtras = {},
 ): { width: number; height: number } {
-  const layout = layoutBoard(board, { ...DEFAULT_RENDER_OPTIONS, ...overrides })
+  const layout = layoutBoard(board, { ...DEFAULT_RENDER_OPTIONS, ...overrides }, extras)
   return { width: layout.width, height: layout.height }
 }
 
@@ -409,16 +521,17 @@ export function paintBoardTo(
   extras: PaintExtras = {},
 ): void {
   const options = { ...DEFAULT_RENDER_OPTIONS, ...overrides }
-  paint(ctx, board, layoutBoard(board, options), images, options, extras)
+  paint(ctx, board, layoutBoard(board, options, extras), images, options, extras)
 }
 
 export async function renderBoard(
   board: Board,
   overrides: Partial<RenderOptions> = {},
   images?: ReadonlyMap<ItemId, CanvasImageSource>,
+  extras: PaintExtras = {},
 ): Promise<HTMLCanvasElement> {
   const options = { ...DEFAULT_RENDER_OPTIONS, ...overrides }
-  const layout = layoutBoard(board, options)
+  const layout = layoutBoard(board, options, extras)
   const resolved = images ?? (await preloadImages(board))
 
   const canvas = document.createElement('canvas')
@@ -428,7 +541,7 @@ export async function renderBoard(
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new RankRoomError('image.canvasBlocked')
 
-  paint(ctx, board, layout, resolved, options)
+  paint(ctx, board, layout, resolved, options, extras)
   return canvas
 }
 

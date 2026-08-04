@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '~/components/ui/Button'
-import { Segmented } from '~/components/ui/Field'
+import { Segmented, Switch } from '~/components/ui/Field'
 import { useT } from '~/i18n'
 import { downloadBlob, slugify } from '~/lib/download'
 import { errorKey } from '~/lib/errors'
@@ -11,7 +11,9 @@ import {
   recordReplay,
   supportsReplayExport,
 } from '~/lib/replay'
-import { measureBoard, paintBoardTo, preloadImages } from '~/lib/render'
+import { crowdGhosts } from '~/lib/crowd'
+import { measureBoard, paintBoardTo, preloadImages, type GhostCell } from '~/lib/render'
+import { selectTally, useCrowdStore } from '~/store/crowdStore'
 import { useBoardStore } from '~/store/boardStore'
 import { useUiStore } from '~/store/uiStore'
 import type { ItemId } from '~/types'
@@ -41,12 +43,61 @@ export function ReplayMode() {
   const [playing, setPlaying] = useState(false)
   const [position, setPosition] = useState(0)
   const [recording, setRecording] = useState<number | null>(null)
+  const [withCrowd, setWithCrowd] = useState(true)
 
-  const timeline = useMemo(() => buildTimeline(board, moves, stepMs), [board, moves, stepMs])
+  const votes = useCrowdStore((state) => state.votes)
+  const voteWindowMs = useCrowdStore((state) => state.config.windowMs)
+
+  /**
+   * The audience verdict, shaped for the renderer. Built here rather than in the
+   * replay so the preview and the recording share exactly one source.
+   */
+  const crowd = useMemo(() => {
+    if (votes.size === 0) return undefined
+
+    const tally = selectTally(votes, board, voteWindowMs)
+    const byTier = crowdGhosts(tally, board)
+    if (byTier.size === 0) return undefined
+
+    const ghosts = new Map<string, GhostCell[]>()
+    let spotlight: string | null = null
+    let widest = -1
+
+    for (const [tierId, placements] of byTier) {
+      ghosts.set(
+        tierId,
+        placements.map((placement) => ({
+          itemId: placement.itemId,
+          votes: placement.votes,
+          share: placement.share,
+        })),
+      )
+
+      // The hardest disagreement gets the callout: most votes wins ties.
+      for (const placement of placements) {
+        if (placement.votes > widest) {
+          widest = placement.votes
+          spotlight = placement.itemId
+        }
+      }
+    }
+
+    return { ghosts, spotlight }
+  }, [votes, board, voteWindowMs])
+
+  const reveal = withCrowd ? crowd : undefined
+
+  const timeline = useMemo(
+    () => buildTimeline(board, moves, stepMs, reveal),
+    [board, moves, stepMs, reveal],
+  )
   const renderOptions = useMemo(() => ({ width: 1280, theme, watermark: true }), [theme])
   // The board's height depends on how many rows wrap, so the canvas is measured
   // rather than assumed — otherwise the last tier would be cropped.
-  const size = useMemo(() => measureBoard(board, renderOptions), [board, renderOptions])
+  const size = useMemo(
+    () => measureBoard(board, renderOptions, reveal ? { ghosts: reveal.ghosts } : {}),
+    [board, renderOptions, reveal],
+  )
 
   const draw = useCallback(
     (timeMs: number) => {
@@ -57,13 +108,7 @@ export function ReplayMode() {
       const frame = frameAt(timeline, timeMs, stepMs)
       context.setTransform(1, 0, 0, 1, 0, 0)
       context.clearRect(0, 0, canvas.width, canvas.height)
-      paintBoardTo(
-        context,
-        frame.board,
-        renderOptions,
-        imagesRef.current,
-        frame.highlight ? { highlight: frame.highlight } : {},
-      )
+      paintBoardTo(context, frame.board, renderOptions, imagesRef.current, frame.extras)
     },
     [timeline, stepMs, renderOptions],
   )
@@ -117,7 +162,7 @@ export function ReplayMode() {
       const result = await recordReplay(
         board,
         moves,
-        { stepMs, format, render: renderOptions },
+        { stepMs, format, render: renderOptions, ...(reveal ? { crowd: reveal } : {}) },
         (ratio) => {
           setRecording(ratio)
         },
@@ -226,6 +271,17 @@ export function ReplayMode() {
               onChange={setFormat}
             />
           </div>
+
+          {crowd ? (
+            <div className="mt-3 border-t border-edge pt-2">
+              <Switch
+                label={t('replay.withCrowd')}
+                hint={t('replay.withCrowdHint')}
+                checked={withCrowd}
+                onChange={setWithCrowd}
+              />
+            </div>
+          ) : null}
 
           <p className="mt-3 text-[11px] leading-relaxed text-slate">
             {t('replay.summary', {
