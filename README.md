@@ -237,6 +237,11 @@ Only the app is published, and only on loopback: point your reverse proxy at
 than append to it — the rate limiter keys on that header. [`server/README.md`](server/README.md)
 has the details.
 
+Backups run in the stack, verified by reading each dump back before it is kept,
+with a restore script that refuses anything it cannot read. See
+[`server/README.md`](server/README.md#backups) — including the two things it
+cannot do for you.
+
 **Or host nothing at all.** The app is still a static bundle: `npm run build` and upload
 `dist/` anywhere. You lose accounts, public profiles and the live overlay; everything else —
 duels, chat voting, exports, share links — runs entirely in the browser and always has.

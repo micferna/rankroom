@@ -12,7 +12,10 @@ name: rankroom
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_PRIVACY_CONTACT: ${PRIVACY_CONTACT:-}
     image: rankroom:latest
     restart: unless-stopped
     depends_on:
@@ -66,6 +69,36 @@ services:
       retries: 5
       start_period: 10s
     security_opt: [no-new-privileges:true]
+    logging: *logging
+
+  backup:
+    # The same Postgres image, for `pg_dump` at exactly the server's version.
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: rankroom
+      PGPASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      PGDATABASE: rankroom
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./scripts:/scripts:ro
+      # A bind mount, deliberately: a backup inside a Docker volume is on the
+      # same disk as the thing it protects, which covers a bad migration and
+      # nothing else. Somewhere visible is somewhere you can copy off the host.
+      - ./backups:/backups
+    # A loop rather than cron: no daemon to configure, and the schedule is one
+    # readable number. `|| true` so one failed dump does not stop the service
+    # and silently end all future backups.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - 'while true; do /scripts/backup.sh || echo "backup failed"; sleep "${BACKUP_INTERVAL_SECONDS:-86400}"; done'
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     logging: *logging
 
 volumes:

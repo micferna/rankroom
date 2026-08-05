@@ -22,6 +22,8 @@ export type RouteName =
   | 'published'
   /** The account screen. */
   | 'account'
+  /** The privacy policy. */
+  | 'privacy'
 
 export interface Route {
   name: RouteName
@@ -48,6 +50,7 @@ const PATTERNS: readonly (readonly [RegExp, RouteName])[] = [
   [/^#\/u\/([A-Za-z0-9_]{1,25})$/, 'profile'],
   [/^#\/p\/([a-z0-9]{12,32})$/, 'published'],
   [/^#\/account$/, 'account'],
+  [/^#\/privacy$/, 'privacy'],
   [/^#\/b\/([A-Za-z0-9\-_]+)$/, 'studio'],
 ]
 

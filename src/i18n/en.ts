@@ -471,6 +471,7 @@ export const en = {
     'Sign in to keep boards across devices, publish a page, and drive a live overlay.',
   'account.open': 'Account',
   'account.signIn': 'Sign in with Twitch',
+  'account.privacy': 'What is stored, and for how long',
   'account.signInHint':
     'No scopes requested — RankRoom asks Twitch who you are and nothing else. It cannot read your chat or touch your stream.',
   'account.signOut': 'Sign out',

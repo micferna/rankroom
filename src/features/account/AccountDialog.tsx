@@ -123,6 +123,14 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
             {t('account.signIn')}
           </Button>
           <p className="text-xs leading-relaxed text-chalk/60">{t('account.signInHint')}</p>
+          {/* Before signing in, not buried in a footer afterwards. */}
+          <a
+            href="#/privacy"
+            className="text-xs text-chalk/60 underline underline-offset-2 hover:text-chalk"
+            onClick={onClose}
+          >
+            {t('account.privacy')}
+          </a>
         </div>
       )
     }

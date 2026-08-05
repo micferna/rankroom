@@ -1,5 +1,6 @@
 import { useRoute } from '~/app/route'
 import { ProfileView } from '~/features/account/ProfileView'
+import { PrivacyView } from '~/features/legal/PrivacyView'
 import { OverlayView } from '~/features/overlay/OverlayView'
 import { Studio } from '~/Studio'
 
@@ -26,6 +27,11 @@ export function App() {
 
     case 'account':
       return <Studio shareToken={null} openAccount />
+
+    // Reachable without a server: the page also explains what the app does
+    // when there is none, which is the case a reader is most likely in.
+    case 'privacy':
+      return <PrivacyView />
 
     case 'studio':
       return <Studio shareToken={route.token} />

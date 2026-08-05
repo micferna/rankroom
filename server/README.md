@@ -166,6 +166,50 @@ assessed this code. If you run it for anyone but yourself, commission a real
 audit; `AUDIT.md` and the threat model above are written so an auditor has
 somewhere to start.
 
+## Backups
+
+A `backup` container dumps the database on a schedule into `./backups`, and
+**verifies every dump by reading it back** before keeping it. That check is the
+point: a dump truncated by a full disk or a killed container is still a file of
+roughly the right size in the right place, and it looks exactly like a good one
+until the day it is needed. A dump that `pg_restore` cannot list is deleted
+rather than left to be mistaken for a backup.
+
+```bash
+docker compose exec backup /scripts/backup.sh    # one now, outside the schedule
+ls -lt backups/
+```
+
+Two settings, both in `.env`: `BACKUP_INTERVAL_SECONDS` (default daily) and
+`BACKUP_KEEP_DAYS` (default 14). Pruning only runs _after_ a dump has been kept,
+so a run of failures never erodes the history that is still good.
+
+### Restoring
+
+```bash
+docker compose run --rm -e CONFIRM=yes backup \
+  /scripts/restore.sh /backups/rankroom-20260805T000000Z.dump
+docker compose restart app
+```
+
+It refuses without `CONFIRM=yes`, and refuses any archive it cannot read. The
+restore runs in a single transaction: it lands whole or leaves the database as
+it found it.
+
+**Practise this.** A backup nobody has restored is a file, not a recovery plan,
+and the first time you find out whether yours works should not be the day the
+disk died. The drill takes two minutes: `docker compose down -v`, bring the
+database back up, restore, check your boards are there.
+
+### Two things the scripts cannot do for you
+
+- **Copy them off this machine.** A backup on the same disk as the database
+  covers a bad migration and nothing else — not a failed disk, not a lost
+  server, not ransomware. Sync `./backups` somewhere else.
+- **Protect them.** Those dumps contain every account and every board, in the
+  clear. They deserve the same care as the database itself: restrictive
+  permissions, and encryption if they leave the host.
+
 ### Reporting a problem
 
 See [SECURITY.md](../SECURITY.md). Please report privately.

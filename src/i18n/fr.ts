@@ -473,6 +473,7 @@ export const fr: Record<keyof typeof en, string> = {
     'Connecte-toi pour garder tes tableaux d’un appareil à l’autre, publier une page et piloter un overlay en direct.',
   'account.open': 'Compte',
   'account.signIn': 'Se connecter avec Twitch',
+  'account.privacy': 'Ce qui est conservé, et combien de temps',
   'account.signInHint':
     'Aucune permission demandée — RankRoom demande à Twitch qui tu es, rien d’autre. Il ne peut ni lire ton tchat ni toucher à ton stream.',
   'account.signOut': 'Se déconnecter',

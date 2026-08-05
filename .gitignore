@@ -35,3 +35,6 @@ npm-debug.log*
 /server/target/
 /server/.env
 /server/db_password.txt
+
+# Backups: real user data, never committed.
+backups/
