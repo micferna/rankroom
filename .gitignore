@@ -38,3 +38,4 @@ npm-debug.log*
 
 # Backups: real user data, never committed.
 backups/
+.runship/

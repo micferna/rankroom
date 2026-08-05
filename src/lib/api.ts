@@ -72,6 +72,12 @@ export interface PublicProfile {
   boards: PublicBoard[]
 }
 
+/** What the server tells the app about itself, before anyone signs in. */
+export interface ServerConfig {
+  privacy_contact: string | null
+  sign_in: boolean
+}
+
 export interface OverlayKey {
   key: string
   url: string
@@ -149,6 +155,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /** A call that answers with nothing, which several of these do. */
 async function requestNothing(path: string, init?: RequestInit): Promise<void> {
   await send(path, init)
+}
+
+/** Public, unauthenticated, and safe to call before signing in. */
+export async function serverConfig(): Promise<ServerConfig> {
+  return request<ServerConfig>('/config')
 }
 
 // --- session ----------------------------------------------------------------

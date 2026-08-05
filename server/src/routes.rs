@@ -24,6 +24,7 @@ use crate::{
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/api/config", get(config))
         .route("/api/auth/twitch/start", get(twitch_start))
         .route("/api/auth/twitch/callback", get(twitch_callback))
         .route("/api/auth/logout", post(logout))
@@ -46,6 +47,18 @@ pub fn router(state: AppState) -> Router {
         .route("/api/", any(unknown_endpoint))
         .route("/api/{*rest}", any(unknown_endpoint))
         .with_state(state)
+}
+
+/// The handful of settings the app needs from the server at runtime.
+///
+/// Public and unauthenticated on purpose: it carries nothing secret, and the
+/// privacy page has to be readable by somebody who has not signed in — which is
+/// most of the people who will ever open it.
+async fn config(State(state): State<AppState>) -> Json<Value> {
+    Json(json!({
+        "privacy_contact": state.config.privacy_contact,
+        "sign_in": state.config.twitch.is_some(),
+    }))
 }
 
 async fn unknown_endpoint() -> ApiError {

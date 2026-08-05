@@ -43,12 +43,6 @@ COPY src/ ./src/
 # Relative, because the API answers on this same origin.
 ENV VITE_API_URL=/api
 
-# Who to contact about the data on this instance. Whoever hosts it is the data
-# controller, so only they can fill this in — unset, the privacy page says so
-# rather than inventing an address. Baked at build time, so changing it means
-# rebuilding: `docker compose up -d --build`.
-ARG VITE_PRIVACY_CONTACT=""
-ENV VITE_PRIVACY_CONTACT=$VITE_PRIVACY_CONTACT
 
 RUN npm run build:app
 

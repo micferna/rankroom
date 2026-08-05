@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { go } from '~/app/route'
 import { Button } from '~/components/ui/Button'
 import { useLocale } from '~/i18n'
-import { contact, policyFor } from './policy'
+import * as api from '~/lib/api'
+import { policyFor } from './policy'
 
 /**
  * The privacy policy at `#/privacy`.
@@ -12,6 +14,26 @@ import { contact, policyFor } from './policy'
 export function PrivacyView() {
   const locale = useLocale()
   const policy = policyFor(locale)
+  const [contact, setContact] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!api.configured) return
+    let cancelled = false
+
+    api
+      .serverConfig()
+      .then((config) => {
+        if (!cancelled) setContact(config.privacy_contact)
+      })
+      .catch(() => {
+        // Without a reachable server there is no controller to name, and the
+        // page says so. A failed lookup and an unset address read the same.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8">
@@ -50,8 +72,8 @@ export function PrivacyView() {
             </dl>
           ) : null}
 
-          {/* The contact belongs to whoever runs this instance, so it is set at
-              build time. Unset, the page says so rather than inventing one. */}
+          {/* The contact belongs to whoever runs this instance, so it comes
+              from that server. Unset, the page says so rather than invent one. */}
           {section === policy.sections[0] ? (
             <p className="text-sm leading-relaxed text-chalk/85">
               {contact ? (

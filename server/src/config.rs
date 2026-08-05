@@ -32,6 +32,13 @@ pub struct Config {
     /// `SameSite=Lax` and removes cross-site request forgery from the threat
     /// model entirely. Leave it unset to run the API alone.
     pub static_dir: Option<std::path::PathBuf>,
+    /// Who to contact about the data on this instance.
+    ///
+    /// Read at runtime and served to the app rather than baked into the build:
+    /// whoever hosts an instance is the data controller, and asking them to
+    /// rebuild an image to correct a contact address is the kind of friction
+    /// that leaves the address wrong.
+    pub privacy_contact: Option<String>,
     /// Total bytes of board documents one account may keep.
     ///
     /// A board count on its own bounds nothing — two hundred boards of thirty
@@ -120,6 +127,7 @@ impl Config {
             rate_limit_burst: parse("RATE_LIMIT_BURST", 40)?,
             insecure_cookies: parse("INSECURE_COOKIES", false)?,
             static_dir: optional("STATIC_DIR").map(std::path::PathBuf::from),
+            privacy_contact: optional("PRIVACY_CONTACT"),
             storage_quota_bytes: parse::<i64>("STORAGE_QUOTA_MB", 512)?.saturating_mul(1024 * 1024),
         })
     }

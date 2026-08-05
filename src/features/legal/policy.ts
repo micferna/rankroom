@@ -15,13 +15,11 @@ import type { Locale } from '~/i18n/locale'
  * ones the server actually creates.
  *
  * The operator of an instance is the data controller, not the author of this
- * software. `VITE_PRIVACY_CONTACT` is how they name themselves; unset, the page
- * says so plainly rather than inventing an address.
+ * software, so the contact address comes from the server at runtime rather than
+ * from the build. Baking it in meant rebuilding an image to correct an address,
+ * which is the kind of friction that leaves addresses wrong — and the platform
+ * refuses interpolated build arguments anyway, for good reason.
  */
-
-const CONTACT = (import.meta.env.VITE_PRIVACY_CONTACT as string | undefined)?.trim() ?? ''
-
-export const contact = CONTACT
 
 export interface Section {
   heading: string

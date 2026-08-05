@@ -12,10 +12,10 @@ name: rankroom
 
 services:
   app:
-    build:
-      context: .
-      args:
-        VITE_PRIVACY_CONTACT: ${PRIVACY_CONTACT:-}
+    # No interpolation under `build:` — a build argument becomes an image layer,
+    # so a value smuggled in there is a value anyone who pulls the image can
+    # read back. RunShip refuses it outright, which is the right call.
+    build: .
     image: rankroom:latest
     restart: unless-stopped
     labels:
@@ -42,6 +42,9 @@ services:
       RATE_LIMIT_PER_SECOND: ${RATE_LIMIT_PER_SECOND:-10}
       RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-40}
       STORAGE_QUOTA_MB: ${STORAGE_QUOTA_MB:-512}
+      # Read at runtime and served to the app, so correcting it is a restart
+      # rather than a rebuild.
+      PRIVACY_CONTACT: ${PRIVACY_CONTACT:-}
       RUST_LOG: ${RUST_LOG:-rankroom_server=info,tower_http=warn}
     ports:
       # Loopback only. Point your reverse proxy here. It terminates TLS, and it
