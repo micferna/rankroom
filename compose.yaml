@@ -18,6 +18,15 @@ services:
         VITE_PRIVACY_CONTACT: ${PRIVACY_CONTACT:-}
     image: rankroom:latest
     restart: unless-stopped
+    labels:
+      # Stop, then start — never two containers at once.
+      #
+      # The default on RunShip is blue-green, which brings the new container up
+      # while the old one is still serving. This app runs its migrations at
+      # startup, so blue-green would have a new version migrating the database
+      # underneath a running old version. A few seconds of downtime on deploy is
+      # a much better trade than that.
+      - stackbase.deploy_strategy=recreate
     depends_on:
       db:
         condition: service_healthy
@@ -54,6 +63,12 @@ services:
   db:
     image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     restart: unless-stopped
+    labels:
+      # Mandatory here, not a preference. Postgres is a single-writer process
+      # over one data directory; a blue-green deploy would start a second one on
+      # the same volume, and that is how a database gets corrupted rather than
+      # updated.
+      - stackbase.deploy_strategy=recreate
     environment:
       POSTGRES_USER: rankroom
       POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
@@ -84,6 +99,8 @@ services:
       PGPASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       PGDATABASE: rankroom
       BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    labels:
+      - stackbase.deploy_strategy=recreate
     volumes:
       - ./scripts:/scripts:ro
       # A bind mount, deliberately: a backup inside a Docker volume is on the
