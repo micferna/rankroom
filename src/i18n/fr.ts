@@ -533,6 +533,15 @@ export const fr: Record<keyof typeof en, string> = {
   'account.errorRequest': 'Le serveur a refusé.',
   'account.errorNoSignIn': 'La connexion n’est pas configurée sur ce serveur.',
 
+  'history.open': 'Historique',
+  'history.title': 'Versions précédentes',
+  'history.empty':
+    'Aucune version précédente. Une est conservée à chaque fois que tu réenregistres ce tableau.',
+  'history.restore': 'Restaurer',
+  'history.restored': 'Restauré. La version que tu quittais est désormais la plus récente ici.',
+  'history.hint':
+    'L’historique s’efface devant ton travail : quand le compte est serré, les plus vieilles versions sautent pour qu’un enregistrement n’échoue jamais. Exporte un tableau pour en garder une copie qui t’appartient.',
+  'history.close': 'Fermer',
   'admin.title': 'Cette instance',
   'admin.accounts': 'Comptes',
   'admin.stored': 'Stocké',

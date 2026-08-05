@@ -247,6 +247,13 @@ pub struct BoardEdit<'a> {
     pub document: &'a serde_json::Value,
 }
 
+/// How many previous states one board keeps, at most.
+///
+/// A ceiling as well as a floor: history is pruned by size first, and this stops
+/// a very small board from accumulating hundreds of versions that individually
+/// never trip the storage quota.
+pub const VERSIONS_PER_BOARD: i64 = 20;
+
 /// Whether this account has room for `document`.
 ///
 /// `replacing` names a board whose current bytes do not count, because they are
@@ -265,6 +272,45 @@ async fn fits(
 ) -> sqlx::Result<bool> {
     let used: i64 = sqlx::query_scalar(
         r"
+        select
+            (
+                select coalesce(sum(pg_column_size(document)), 0)::bigint
+                from boards
+                where owner_id = $1 and ($2::uuid is null or id <> $2)
+            )
+            + (
+                select coalesce(sum(pg_column_size(v.document)), 0)::bigint
+                from board_versions v
+                join boards b on b.id = v.board_id
+                where b.owner_id = $1
+            )
+        ",
+    )
+    .bind(owner_id)
+    .bind(replacing)
+    .fetch_one(&mut **transaction)
+    .await?;
+
+    // Two different measures, deliberately. What is stored is measured with
+    // `pg_column_size`, which reports what it occupies on disk after Postgres
+    // has compressed it — that is what the quota exists to protect. What is
+    // arriving can only be measured uncompressed, because it is not stored yet.
+    //
+    // So the check errs toward refusing early for compressible boards. Real
+    // ones are base64 of already-compressed images and barely compress at all,
+    // which is why the gap is small in practice and conservative when it is not.
+    let incoming = i64::try_from(document.to_string().len()).unwrap_or(i64::MAX);
+    Ok(used.saturating_add(incoming) <= storage_quota_bytes)
+}
+
+/// Bytes of boards this account holds, ignoring one that is being replaced.
+async fn board_bytes(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner_id: Uuid,
+    replacing: Option<Uuid>,
+) -> sqlx::Result<i64> {
+    sqlx::query_scalar(
+        r"
         select coalesce(sum(pg_column_size(document)), 0)::bigint
         from boards
         where owner_id = $1 and ($2::uuid is null or id <> $2)
@@ -273,10 +319,126 @@ async fn fits(
     .bind(owner_id)
     .bind(replacing)
     .fetch_one(&mut **transaction)
-    .await?;
+    .await
+}
 
-    let incoming = i64::try_from(document.to_string().len()).unwrap_or(i64::MAX);
-    Ok(used.saturating_add(incoming) <= storage_quota_bytes)
+/// Drops the oldest history until what remains fits `budget`.
+///
+/// Newest-first, keeping whatever fits and discarding the rest in one
+/// statement. A negative budget deletes everything, which is the correct
+/// behaviour when the boards alone have filled the account: history is the
+/// thing that yields.
+async fn trim_history_to(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner_id: Uuid,
+    budget: i64,
+) -> sqlx::Result<u64> {
+    sqlx::query(
+        r"
+        with ordered as (
+            select
+                v.id,
+                sum(pg_column_size(v.document)) over (
+                    order by v.saved_at desc, v.id
+                    rows between unbounded preceding and current row
+                ) as running
+            from board_versions v
+            join boards b on b.id = v.board_id
+            where b.owner_id = $1
+        )
+        delete from board_versions
+        where id in (select id from ordered where running > $2)
+        ",
+    )
+    .bind(owner_id)
+    .bind(budget)
+    .execute(&mut **transaction)
+    .await
+    .map(|done| done.rows_affected())
+}
+
+/// Keeps only the most recent [`VERSIONS_PER_BOARD`] states of one board.
+async fn trim_history_count(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    board_id: Uuid,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        r"
+        delete from board_versions
+        where id in (
+            select id from board_versions
+            where board_id = $1
+            order by saved_at desc, id
+            offset $2
+        )
+        ",
+    )
+    .bind(board_id)
+    .bind(VERSIONS_PER_BOARD)
+    .execute(&mut **transaction)
+    .await
+    .map(|_| ())
+}
+
+/// One previous state, without the document.
+///
+/// Listing history must not mean loading every megabyte of it: a person picking
+/// a version wants a time and a size, and only then the one they chose.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct VersionSummary {
+    pub id: Uuid,
+    pub title: String,
+    pub item_count: i32,
+    pub bytes: i64,
+    #[serde(with = "time::serde::rfc3339")]
+    pub saved_at: OffsetDateTime,
+}
+
+pub async fn versions_for_board(
+    pool: &PgPool,
+    board_id: Uuid,
+    owner_id: Uuid,
+) -> sqlx::Result<Vec<VersionSummary>> {
+    sqlx::query_as::<_, VersionSummary>(
+        r"
+        select v.id, v.title, v.item_count,
+               pg_column_size(v.document)::bigint as bytes, v.saved_at
+        from board_versions v
+        join boards b on b.id = v.board_id
+        where v.board_id = $1 and b.owner_id = $2
+        order by v.saved_at desc
+        ",
+    )
+    .bind(board_id)
+    .bind(owner_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Reads one version, but only through its board's owner.
+///
+/// The ownership join is what makes a version id useless to anybody else: it is
+/// the same rule the boards themselves follow, applied one level down, because
+/// history is exactly as private as the board it belongs to.
+pub async fn version_document(
+    pool: &PgPool,
+    version_id: Uuid,
+    board_id: Uuid,
+    owner_id: Uuid,
+) -> sqlx::Result<Option<(String, i32, serde_json::Value)>> {
+    sqlx::query_as(
+        r"
+        select v.title, v.item_count, v.document
+        from board_versions v
+        join boards b on b.id = v.board_id
+        where v.id = $1 and v.board_id = $2 and b.owner_id = $3
+        ",
+    )
+    .bind(version_id)
+    .bind(board_id)
+    .bind(owner_id)
+    .fetch_optional(pool)
+    .await
 }
 
 /// Updates a board **only** when it belongs to `owner_id`, and only if it fits.
@@ -308,6 +470,40 @@ pub async fn update_board_within_quota(
         .fetch_optional(&mut *transaction)
         .await?;
 
+    // Keep what is about to be overwritten, before overwriting it. History is
+    // what the board *was*; the row is what it is.
+    sqlx::query(
+        r"
+        insert into board_versions (board_id, title, item_count, document)
+        select id, title, item_count, document from boards
+        where id = $1 and owner_id = $2
+        ",
+    )
+    .bind(id)
+    .bind(owner_id)
+    .execute(&mut *transaction)
+    .await?;
+
+    trim_history_count(&mut transaction, id).await?;
+
+    // History yields, and this is the line that makes it true. Whatever the
+    // boards and the incoming document do not use is the budget left for
+    // history; everything past it is discarded, oldest first. Losing an old
+    // version is a nuisance. Being unable to save the board you are working on,
+    // live, because of history you are not, is not acceptable.
+    let incoming = i64::try_from(document.to_string().len()).unwrap_or(i64::MAX);
+    let boards = board_bytes(&mut transaction, owner_id, Some(id)).await?;
+    let budget = storage_quota_bytes
+        .saturating_sub(boards)
+        .saturating_sub(incoming);
+
+    let dropped = trim_history_to(&mut transaction, owner_id, budget).await?;
+    if dropped > 0 {
+        tracing::debug!(dropped, "dropped old versions to make room");
+    }
+
+    // Only now, with history already reduced to what fits around it, can the
+    // board itself be too big. That is a real refusal.
     if !fits(
         &mut transaction,
         owner_id,

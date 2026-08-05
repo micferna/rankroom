@@ -33,6 +33,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/boards", get(list_boards).post(save_board))
         .route("/api/boards/{id}", get(get_board).put(update_board))
         .route("/api/boards/{id}", delete(remove_board))
+        .route("/api/boards/{id}/versions", get(list_versions))
+        .route("/api/boards/{id}/versions/{version}", post(restore_version))
         .route("/api/admin/overview", get(admin_overview))
         .route(
             "/api/admin/users/{id}/suspension",
@@ -564,6 +566,56 @@ async fn admin_set_suspension(
     } else {
         Err(ApiError::NotFound)
     }
+}
+
+/// Previous states of one of your boards, newest first.
+async fn list_versions(
+    State(state): State<AppState>,
+    Auth(user): Auth,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Value>> {
+    let versions = db::versions_for_board(&state.pool, id, user.id).await?;
+    Ok(Json(json!({ "versions": versions })))
+}
+
+/// Puts a previous state back.
+///
+/// Restoring is itself a save, so it goes through the same path as any other
+/// update: it records what is there now as a version first. Undoing a restore
+/// is then just another restore, and nothing about this is a one-way door.
+async fn restore_version(
+    State(state): State<AppState>,
+    Auth(user): Auth,
+    Path((id, version)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Json<BoardSummary>> {
+    let (title, item_count, document) = db::version_document(&state.pool, version, id, user.id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let row = db::update_board_within_quota(
+        &state.pool,
+        &db::BoardEdit {
+            id,
+            owner_id: user.id,
+            title: &title,
+            // A restore does not change who can see the board. Publishing is a
+            // decision about now, not something to be undone by reaching back
+            // to a state from before it was made.
+            is_public: db::board_by_id(&state.pool, id)
+                .await?
+                .ok_or(ApiError::NotFound)?
+                .is_public,
+            item_count,
+            document: &document,
+        },
+        state.config.storage_quota_bytes,
+    )
+    .await?
+    .map_err(|_| ApiError::StorageExceeded)?
+    .ok_or(ApiError::NotFound)?;
+
+    publish_overlay(&state, user.id, &row);
+    Ok(Json(summarise(&row)))
 }
 
 // --- public -----------------------------------------------------------------

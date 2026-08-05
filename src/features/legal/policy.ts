@@ -38,7 +38,14 @@ export interface Policy {
 }
 
 /** Kept in sync with `server/migrations/`; the test asserts it. */
-export const DOCUMENTED_TABLES = ['users', 'sessions', 'boards', 'overlay_keys', 'oauth_states']
+export const DOCUMENTED_TABLES = [
+  'users',
+  'sessions',
+  'boards',
+  'board_versions',
+  'overlay_keys',
+  'oauth_states',
+]
 
 const EN: Policy = {
   title: 'Privacy',
@@ -83,6 +90,10 @@ const EN: Policy = {
           'Title, the board itself including any images you added, and whether it is public.',
         ],
         [
+          'Previous versions of your boards',
+          'Each time you save over a board, what it was is kept so you can go back. Up to twenty per board, and fewer when your account is near its storage limit — the oldest are dropped to make room for what you are working on.',
+        ],
+        [
           'Overlay keys',
           'A hash of each key. The key itself is shown to you once and never stored.',
         ],
@@ -116,7 +127,7 @@ const EN: Policy = {
     {
       heading: 'How long it is kept',
       body: [
-        'Sessions expire on their own and are deleted after that. Sign-ins in progress expire in ten minutes. Your account and your boards are kept until you delete them.',
+        'Sessions expire on their own and are deleted after that. Sign-ins in progress expire in ten minutes. Your account and your boards are kept until you delete them, and deleting a board takes its previous versions with it.',
       ],
     },
     {
@@ -185,6 +196,10 @@ const FR: Policy = {
           'Titre, le tableau lui-même y compris les images que tu y as mises, et s’il est public.',
         ],
         [
+          'Les versions précédentes de tes tableaux',
+          'À chaque fois que tu réenregistres un tableau, ce qu’il était est conservé pour que tu puisses y revenir. Jusqu’à vingt par tableau, et moins quand ton compte approche de sa limite : les plus anciennes sautent pour laisser la place à ce sur quoi tu travailles.',
+        ],
+        [
           'Clés d’overlay',
           'Une empreinte de chaque clé. La clé elle-même t’est montrée une fois et n’est jamais stockée.',
         ],
@@ -221,7 +236,7 @@ const FR: Policy = {
     {
       heading: 'Durées de conservation',
       body: [
-        'Les sessions expirent d’elles-mêmes et sont supprimées ensuite. Les connexions en cours expirent en dix minutes. Ton compte et tes tableaux sont conservés jusqu’à ce que tu les supprimes.',
+        'Les sessions expirent d’elles-mêmes et sont supprimées ensuite. Les connexions en cours expirent en dix minutes. Ton compte et tes tableaux sont conservés jusqu’à ce que tu les supprimes, et supprimer un tableau emporte ses versions précédentes.',
       ],
     },
     {

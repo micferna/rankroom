@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { profileUrl } from '~/app/route'
 import { AdminPanel } from './AdminPanel'
+import { BoardHistory } from './BoardHistory'
 import { Button, IconButton } from '~/components/ui/Button'
 import { Switch } from '~/components/ui/Field'
 import { Modal } from '~/components/ui/Modal'
@@ -53,6 +54,7 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
   const replaceBoard = useBoardStore((state) => state.replaceBoard)
 
   const [confirmingBoard, setConfirmingBoard] = useState<string | null>(null)
+  const [historyFor, setHistoryFor] = useState<string | null>(null)
   const [confirmingAccount, setConfirmingAccount] = useState(false)
   const [publish, setPublish] = useState(false)
 
@@ -238,6 +240,16 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
                     {t('account.open.board')}
                   </Button>
 
+                  <Button
+                    size="sm"
+                    icon="undo"
+                    onClick={() => {
+                      setHistoryFor(historyFor === entry.id ? null : entry.id)
+                    }}
+                  >
+                    {t('history.open')}
+                  </Button>
+
                   {confirmingBoard === entry.id ? (
                     <>
                       <Button
@@ -274,6 +286,18 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
                       }}
                     />
                   )}
+
+                  {historyFor === entry.id ? (
+                    <BoardHistory
+                      boardId={entry.id}
+                      onRestored={() => {
+                        void refreshBoards()
+                      }}
+                      onClose={() => {
+                        setHistoryFor(null)
+                      }}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

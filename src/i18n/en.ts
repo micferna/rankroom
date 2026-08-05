@@ -529,6 +529,14 @@ export const en = {
   'account.errorRequest': 'The server refused that.',
   'account.errorNoSignIn': 'Sign-in is not configured on this server.',
 
+  'history.open': 'History',
+  'history.title': 'Previous versions',
+  'history.empty': 'No previous versions yet. One is kept each time you save over this board.',
+  'history.restore': 'Restore',
+  'history.restored': 'Restored. The version you were on is now the newest entry here.',
+  'history.hint':
+    'History yields to your work: when the account runs tight, the oldest versions are dropped so a save never fails. Export a board to keep a copy that is yours.',
+  'history.close': 'Close',
   'admin.title': 'This instance',
   'admin.accounts': 'Accounts',
   'admin.stored': 'Stored',

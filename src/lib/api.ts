@@ -236,6 +236,32 @@ export async function openBoard(id: string): Promise<Board> {
   return parseBoard(body.document)
 }
 
+// --- history ----------------------------------------------------------------
+
+export interface BoardVersion {
+  id: string
+  title: string
+  item_count: number
+  bytes: number
+  saved_at: string
+}
+
+/**
+ * Previous states of one of your boards, newest first.
+ *
+ * Metadata only — a version list must not download every megabyte of a heavy
+ * board to render a column of dates.
+ */
+export async function versions(boardId: string): Promise<BoardVersion[]> {
+  const body = await request<{ versions: BoardVersion[] }>(`/boards/${boardId}/versions`)
+  return body.versions
+}
+
+/** Puts a previous state back. Itself a save, so it is undoable the same way. */
+export async function restoreVersion(boardId: string, versionId: string): Promise<CloudBoard> {
+  return request<CloudBoard>(`/boards/${boardId}/versions/${versionId}`, { method: 'POST' })
+}
+
 // --- public -----------------------------------------------------------------
 
 export async function profile(login: string): Promise<PublicProfile> {
