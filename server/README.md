@@ -201,6 +201,17 @@ and the first time you find out whether yours works should not be the day the
 disk died. The drill takes two minutes: `docker compose down -v`, bring the
 database back up, restore, check your boards are there.
 
+### On a managed platform, do not rely on this
+
+The `backup` service writes to a repository-relative directory, which works on a
+machine you control and **does not survive a redeploy on RunShip** — measured,
+not assumed: a dump taken before a deploy was gone after it, with `/backups`
+empty. A backup service that reports success and then loses its output is worse
+than none, because it is trusted.
+
+If you run this on a platform, use the platform's own backup facility and treat
+the container here as off. Everything below applies to a host you control.
+
 ### Two things the scripts cannot do for you
 
 - **Copy them off this machine.** A backup on the same disk as the database
