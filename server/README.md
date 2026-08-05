@@ -92,6 +92,30 @@ No passwords, because there are none: identity comes from Twitch. No email
 addresses. No analytics. `DELETE /api/me` removes the account and everything
 attached to it, immediately and by cascade — there is no soft delete.
 
+## Who may have an account
+
+**A Twitch sign-in proves identity. It is not a claim on your disk.** Until you
+say otherwise this instance is `closed`: existing accounts work, nobody new is
+created. `REGISTRATION=invite` admits the logins in `ALLOWED_LOGINS`, and
+`REGISTRATION=open` admits anybody with a Twitch account.
+
+Three properties the tests pin down, because each is easy to get wrong:
+
+- **Tightening the mode never locks out existing accounts.** The gate is on
+  creating one, not on signing in. Otherwise closing registration would take
+  everyone's boards away from them, and nobody would dare use the lever.
+- **A refusal creates nothing.** No half-made user row to find later.
+- **`MAX_ACCOUNTS` holds under concurrent sign-ups.** It is enforced inside one
+  transaction under an advisory lock — the board quota taught that lesson, and a
+  cap that counts and then inserts is not a cap.
+
+Before opening registration, do the arithmetic: **`MAX_ACCOUNTS` ×
+`STORAGE_QUOTA_MB` is what the disk must hold.** The default 512 MB per account
+suits an instance shared with a few people; a public one wants far less.
+
+Suspending an account (`suspended_at`) shuts one person out while keeping their
+boards — the reversible lever, next to deletion which is not.
+
 ## Security
 
 The rule the code is built around: **the client is not a security boundary.**

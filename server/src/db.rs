@@ -28,7 +28,12 @@ pub struct BoardRow {
     pub updated_at: OffsetDateTime,
 }
 
-/// Creates the user on first sign-in, refreshes their profile on every later one.
+/// Creates or refreshes a user with **no admission check at all**.
+///
+/// Request-handling code must go through [`crate::admission::admit`], which
+/// decides whether this instance wants the account before creating it. This
+/// function exists for tests that seed fixtures, and calling it from a route
+/// would hand every Twitch user an account here.
 ///
 /// Keyed on the Twitch id rather than the login: logins can be renamed, and
 /// treating a rename as a new person would orphan their boards.

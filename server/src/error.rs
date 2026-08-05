@@ -34,6 +34,15 @@ pub enum ApiError {
     #[error("sign-in is not configured on this server")]
     SignInUnavailable,
 
+    #[error("registration is not open on this server")]
+    NotInvited,
+
+    #[error("this server is full")]
+    InstanceFull,
+
+    #[error("this account is suspended")]
+    Suspended,
+
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 
@@ -56,6 +65,9 @@ impl ApiError {
             Self::QuotaExceeded => (StatusCode::CONFLICT, "quota_exceeded"),
             Self::StorageExceeded => (StatusCode::CONFLICT, "storage_exceeded"),
             Self::SignInUnavailable => (StatusCode::SERVICE_UNAVAILABLE, "sign_in_unavailable"),
+            Self::NotInvited => (StatusCode::FORBIDDEN, "not_invited"),
+            Self::InstanceFull => (StatusCode::SERVICE_UNAVAILABLE, "instance_full"),
+            Self::Suspended => (StatusCode::FORBIDDEN, "suspended"),
             Self::Database(_) | Self::Other(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }

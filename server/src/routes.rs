@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
+    admission,
     auth::{self, Auth},
     board::{self, BoardSummary, SaveBoard},
     db::{self, BoardRow},
@@ -58,6 +59,13 @@ async fn config(State(state): State<AppState>) -> Json<Value> {
     Json(json!({
         "privacy_contact": state.config.privacy_contact,
         "sign_in": state.config.twitch.is_some(),
+        // So the app can say "registration is closed" on the button rather than
+        // after a round trip through Twitch that was never going to work.
+        "registration": match state.config.admission.mode {
+            admission::Mode::Open => "open",
+            admission::Mode::Invite => "invite",
+            admission::Mode::Closed => "closed",
+        },
     }))
 }
 
@@ -170,54 +178,41 @@ async fn twitch_callback(
         .await?
         .ok_or(ApiError::BadRequest("unknown or expired sign-in attempt"))?;
 
-    let tokens: TwitchTokens = state
-        .http
-        .post("https://id.twitch.tv/oauth2/token")
-        .form(&[
-            ("client_id", twitch.client_id.as_str()),
-            ("client_secret", twitch.client_secret.as_str()),
-            ("code", code.as_str()),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", &state.config.redirect_uri()),
-            ("code_verifier", verifier.as_str()),
-        ])
-        .send()
-        .await
-        .map_err(|error| ApiError::Other(error.into()))?
-        .error_for_status()
-        .map_err(|error| ApiError::Other(error.into()))?
-        .json()
-        .await
-        .map_err(|error| ApiError::Other(error.into()))?;
+    let profile = twitch_profile(&state, twitch, &code, &verifier).await?;
 
-    let profile: TwitchUsers = state
-        .http
-        .get("https://api.twitch.tv/helix/users")
-        .header("Client-Id", &twitch.client_id)
-        .bearer_auth(&tokens.access_token)
-        .send()
-        .await
-        .map_err(|error| ApiError::Other(error.into()))?
-        .error_for_status()
-        .map_err(|error| ApiError::Other(error.into()))?
-        .json()
-        .await
-        .map_err(|error| ApiError::Other(error.into()))?;
-
-    let profile = profile
-        .data
-        .into_iter()
-        .next()
-        .ok_or_else(|| ApiError::Other(anyhow::anyhow!("Twitch returned no profile")))?;
-
-    let user = db::upsert_user(
+    // Completing a Twitch handshake proves who somebody is. It does not entitle
+    // them to storage here, so admission is decided before an account exists —
+    // a refusal leaves nothing behind to clean up.
+    let admitted = admission::admit(
         &state.pool,
-        &profile.id,
-        &profile.login,
-        &profile.display_name,
-        profile.profile_image_url.as_deref(),
+        &state.config.admission,
+        &admission::Identity {
+            twitch_id: &profile.id,
+            login: &profile.login,
+            display_name: &profile.display_name,
+            avatar_url: profile.profile_image_url.as_deref(),
+        },
     )
     .await?;
+
+    let user = match admitted {
+        Ok(user) => user,
+        // Sent back to the app with a reason rather than shown a bare status:
+        // whoever hit this followed a sign-in button and deserves a sentence
+        // explaining why it did not work.
+        Err(reason) => {
+            let code = match reason {
+                admission::Refusal::NotInvited => "not_invited",
+                admission::Refusal::Full => "full",
+                admission::Refusal::Suspended => "suspended",
+            };
+            tracing::info!(login = %profile.login, code, "sign-in refused");
+            return Ok(
+                Redirect::to(&format!("{}#/account?error={code}", state.config.app_url))
+                    .into_response(),
+            );
+        }
+    };
 
     let user_agent = headers
         .get(header::USER_AGENT)
@@ -244,6 +239,54 @@ async fn twitch_callback(
         Redirect::to(&format!("{}#/account", state.config.app_url)),
     )
         .into_response())
+}
+
+/// Exchanges the authorisation code and asks Twitch who this is.
+async fn twitch_profile(
+    state: &AppState,
+    twitch: &crate::config::TwitchConfig,
+    code: &str,
+    verifier: &str,
+) -> ApiResult<TwitchUser> {
+    let tokens: TwitchTokens = state
+        .http
+        .post("https://id.twitch.tv/oauth2/token")
+        .form(&[
+            ("client_id", twitch.client_id.as_str()),
+            ("client_secret", twitch.client_secret.as_str()),
+            ("code", code),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", &state.config.redirect_uri()),
+            ("code_verifier", verifier),
+        ])
+        .send()
+        .await
+        .map_err(|error| ApiError::Other(error.into()))?
+        .error_for_status()
+        .map_err(|error| ApiError::Other(error.into()))?
+        .json()
+        .await
+        .map_err(|error| ApiError::Other(error.into()))?;
+
+    let profile: TwitchUsers = state
+        .http
+        .get("https://api.twitch.tv/helix/users")
+        .header("Client-Id", &twitch.client_id)
+        .bearer_auth(&tokens.access_token)
+        .send()
+        .await
+        .map_err(|error| ApiError::Other(error.into()))?
+        .error_for_status()
+        .map_err(|error| ApiError::Other(error.into()))?
+        .json()
+        .await
+        .map_err(|error| ApiError::Other(error.into()))?;
+
+    profile
+        .data
+        .into_iter()
+        .next()
+        .ok_or_else(|| ApiError::Other(anyhow::anyhow!("Twitch returned no profile")))
 }
 
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {

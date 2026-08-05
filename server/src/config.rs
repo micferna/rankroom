@@ -32,6 +32,8 @@ pub struct Config {
     /// `SameSite=Lax` and removes cross-site request forgery from the threat
     /// model entirely. Leave it unset to run the API alone.
     pub static_dir: Option<std::path::PathBuf>,
+    /// Who may create an account here, and who administers the instance.
+    pub admission: crate::admission::Policy,
     /// Who to contact about the data on this instance.
     ///
     /// Read at runtime and served to the app rather than baked into the build:
@@ -128,6 +130,21 @@ impl Config {
             insecure_cookies: parse("INSECURE_COOKIES", false)?,
             static_dir: optional("STATIC_DIR").map(std::path::PathBuf::from),
             privacy_contact: optional("PRIVACY_CONTACT"),
+            admission: crate::admission::Policy {
+                // Closed unless told otherwise. A deployment that forgets this
+                // setting must not be open to the whole of Twitch by accident.
+                mode: optional("REGISTRATION")
+                    .map(|raw| raw.parse())
+                    .transpose()
+                    .map_err(|error: String| anyhow!(error))?
+                    .unwrap_or_default(),
+                allowed: crate::admission::logins(&optional("ALLOWED_LOGINS").unwrap_or_default()),
+                admins: crate::admission::logins(&optional("ADMIN_LOGINS").unwrap_or_default()),
+                max_accounts: optional("MAX_ACCOUNTS")
+                    .map(|raw| raw.parse::<i64>())
+                    .transpose()
+                    .map_err(|_| anyhow!("MAX_ACCOUNTS is not a number"))?,
+            },
             storage_quota_bytes: parse::<i64>("STORAGE_QUOTA_MB", 512)?.saturating_mul(1024 * 1024),
         })
     }

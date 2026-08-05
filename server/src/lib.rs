@@ -13,6 +13,7 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
+pub mod admission;
 pub mod auth;
 pub mod board;
 pub mod config;
