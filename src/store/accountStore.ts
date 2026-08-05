@@ -22,6 +22,13 @@ interface AccountStore {
   boards: api.CloudBoard[]
   /** The cloud board the board being edited came from, when it came from one. */
   linkedId: string | null
+  /**
+   * The version the board being edited was opened at.
+   *
+   * Sent back with the next save so the server can refuse it if somebody else
+   * saved in the meantime — the whole of what makes a shared board safe.
+   */
+  linkedVersion: string | null
   overlay: api.OverlayKey | null
   /** The instance overview, when this account administers it. */
   admin: api.AdminOverview | null
@@ -31,7 +38,7 @@ interface AccountStore {
   refresh: () => Promise<void>
   refreshBoards: () => Promise<void>
   refreshAdmin: () => Promise<void>
-  setLinked: (id: string | null) => void
+  setLinked: (id: string | null, version?: string | null) => void
   setOverlay: (overlay: api.OverlayKey | null) => void
   setBusy: (busy: boolean) => void
   /** Forgets everything cached about the session, without calling the server. */
@@ -43,6 +50,7 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
   account: null,
   boards: [],
   linkedId: null,
+  linkedVersion: null,
   overlay: null,
   admin: null,
   busy: false,
@@ -65,6 +73,7 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
               account: null,
               boards: [],
               linkedId: null,
+              linkedVersion: null,
               overlay: null,
               admin: null,
             },
@@ -97,8 +106,8 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
     }
   },
 
-  setLinked: (linkedId) => {
-    set({ linkedId })
+  setLinked: (linkedId, linkedVersion = null) => {
+    set({ linkedId, linkedVersion })
   },
   setOverlay: (overlay) => {
     set({ overlay })
@@ -112,6 +121,7 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       account: null,
       boards: [],
       linkedId: null,
+      linkedVersion: null,
       overlay: null,
       admin: null,
     })

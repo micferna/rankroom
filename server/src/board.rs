@@ -159,6 +159,17 @@ pub struct SaveBoard {
     #[serde(default)]
     pub is_public: bool,
     pub document: Value,
+    /// The board's `updated_at` when this edit began, when the client knows it.
+    ///
+    /// What stops two people overwriting each other. A write built on a version
+    /// that has since moved is refused rather than applied, and the writer is
+    /// told, instead of finding out later that their work is gone.
+    ///
+    /// Optional because a client editing a board nobody shares does not need
+    /// it, and because omitting it must mean "I am not claiming to know" rather
+    /// than silently meaning "overwrite whatever is there".
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub based_on: Option<time::OffsetDateTime>,
 }
 
 /// What a caller gets back.

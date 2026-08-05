@@ -97,6 +97,7 @@ function messageFor(status: number, code: string): MessageKey {
   if (status === 401) return 'account.errorSignedOut'
   if (status === 404) return 'account.errorMissing'
   if (status === 413) return 'account.errorTooLarge'
+  if (code === 'stale') return 'account.errorStale'
   if (status === 429) return 'account.errorBusy'
   if (status >= 500) return 'account.errorServer'
   return 'account.errorRequest'
@@ -208,15 +209,63 @@ export async function createBoard(board: Board, isPublic: boolean): Promise<Clou
   })
 }
 
+/**
+ * Saves over a board.
+ *
+ * `basedOn` is the `updated_at` this edit started from. Sending it means the
+ * server refuses the write if somebody else saved in the meantime, rather than
+ * silently replacing their work — which is the whole of what makes a shared
+ * board safe to edit. Omitting it means "I am not claiming to know", which is
+ * right for a board nobody else can touch.
+ */
 export async function updateBoard(
   id: string,
   board: Board,
   isPublic: boolean,
+  basedOn?: string,
 ): Promise<CloudBoard> {
   return request<CloudBoard>(`/boards/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ title: board.title, is_public: isPublic, document: board }),
+    body: JSON.stringify({
+      title: board.title,
+      is_public: isPublic,
+      document: board,
+      ...(basedOn === undefined ? {} : { based_on: basedOn }),
+    }),
   })
+}
+
+// --- sharing ----------------------------------------------------------------
+
+export interface Collaborator {
+  user_id: string
+  login: string
+  display_name: string
+  avatar_url: string | null
+  added_at: string
+}
+
+/** Boards somebody else has shared with you. */
+export async function sharedBoards(): Promise<CloudBoard[]> {
+  const body = await request<{ boards: CloudBoard[] }>('/boards/shared')
+  return body.boards
+}
+
+export async function collaborators(boardId: string): Promise<Collaborator[]> {
+  const body = await request<{ collaborators: Collaborator[] }>(`/boards/${boardId}/collaborators`)
+  return body.collaborators
+}
+
+export async function addCollaborator(boardId: string, login: string): Promise<Collaborator> {
+  const body = await request<{ collaborator: Collaborator }>(`/boards/${boardId}/collaborators`, {
+    method: 'POST',
+    body: JSON.stringify({ login }),
+  })
+  return body.collaborator
+}
+
+export async function removeCollaborator(boardId: string, userId: string): Promise<void> {
+  await requestNothing(`/boards/${boardId}/collaborators/${userId}`, { method: 'DELETE' })
 }
 
 export async function deleteBoard(id: string): Promise<void> {
@@ -231,9 +280,21 @@ export async function deleteBoard(id: string): Promise<void> {
  * validation — the parser is what guarantees the shape the rest of the app
  * assumes, whatever the bytes came from.
  */
-export async function openBoard(id: string): Promise<Board> {
-  const body = await request<{ document: unknown }>(`/boards/${id}`)
-  return parseBoard(body.document)
+export async function openBoard(
+  id: string,
+): Promise<{ board: Board; updatedAt: string; access: 'owner' | 'collaborator' }> {
+  const body = await request<{
+    board: { updated_at: string }
+    document: unknown
+    access: 'owner' | 'collaborator'
+  }>(`/boards/${id}`)
+
+  return {
+    board: parseBoard(body.document),
+    // Carried back so the next save can say what it was based on.
+    updatedAt: body.board.updated_at,
+    access: body.access,
+  }
 }
 
 // --- history ----------------------------------------------------------------

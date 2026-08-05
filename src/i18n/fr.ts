@@ -533,6 +533,20 @@ export const fr: Record<keyof typeof en, string> = {
   'account.errorRequest': 'Le serveur a refusé.',
   'account.errorNoSignIn': 'La connexion n’est pas configurée sur ce serveur.',
 
+  'account.errorStale':
+    'Quelqu’un d’autre a enregistré ce tableau pendant que tu le modifiais. Rouvre-le pour voir sa version — rien de ton travail n’a été écrasé, et rien du sien non plus.',
+  'collab.title': 'Qui peut modifier ce tableau',
+  'collab.hint':
+    'Ces personnes peuvent modifier ce tableau et rien d’autre : ni le publier, ni le supprimer, et rien d’autre chez toi. Leurs enregistrements comptent sur ton stockage.',
+  'collab.add': 'Inviter',
+  'collab.login': 'Pseudo Twitch',
+  'collab.added': 'Invitation faite.',
+  'collab.removed': 'Retiré.',
+  'collab.remove': 'Retirer',
+  'collab.empty': 'Personne pour l’instant.',
+  'collab.open': 'Partager',
+  'collab.sharedWithMe': 'Partagés avec toi',
+  'collab.leave': 'Quitter',
   'history.open': 'Historique',
   'history.title': 'Versions précédentes',
   'history.empty':

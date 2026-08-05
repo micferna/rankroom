@@ -33,6 +33,15 @@ pub fn router(state: AppState) -> Router {
         .route("/api/boards", get(list_boards).post(save_board))
         .route("/api/boards/{id}", get(get_board).put(update_board))
         .route("/api/boards/{id}", delete(remove_board))
+        .route("/api/boards/shared", get(list_shared))
+        .route(
+            "/api/boards/{id}/collaborators",
+            get(list_collaborators).post(add_collaborator),
+        )
+        .route(
+            "/api/boards/{id}/collaborators/{collaborator}",
+            delete(remove_collaborator),
+        )
         .route("/api/boards/{id}/versions", get(list_versions))
         .route("/api/boards/{id}/versions/{version}", post(restore_version))
         .route("/api/admin/overview", get(admin_overview))
@@ -420,6 +429,8 @@ async fn save_board(
         Ok(row) => row,
         Err(db::QuotaDenial::Count) => return Err(ApiError::QuotaExceeded),
         Err(db::QuotaDenial::Storage) => return Err(ApiError::StorageExceeded),
+        // Creation has nothing to be stale against.
+        Err(db::QuotaDenial::Stale(_)) => return Err(ApiError::Stale),
     };
 
     publish_overlay(&state, user.id, &row);
@@ -431,19 +442,25 @@ async fn get_board(
     Auth(user): Auth,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<Value>> {
+    // Owner or collaborator; anybody else gets the same answer as somebody
+    // asking for a board that does not exist, because the difference would
+    // confirm the id is real.
+    let access = db::access_to(&state.pool, id, user.id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
     let row = db::board_by_id(&state.pool, id)
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    // A board that is not yours is "not found", not "forbidden": the difference
-    // would confirm the id exists.
-    if row.owner_id != user.id {
-        return Err(ApiError::NotFound);
-    }
-
-    Ok(Json(
-        json!({ "board": summarise(&row), "document": row.document }),
-    ))
+    Ok(Json(json!({
+        "board": summarise(&row),
+        "document": row.document,
+        "access": match access {
+            db::Access::Owner => "owner",
+            db::Access::Collaborator => "collaborator",
+        },
+    })))
 }
 
 async fn update_board(
@@ -454,24 +471,125 @@ async fn update_board(
 ) -> ApiResult<Json<BoardSummary>> {
     let item_count = check(&payload)?;
 
+    let access = db::access_to(&state.pool, id, user.id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let existing = db::board_by_id(&state.pool, id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
     let row = db::update_board_within_quota(
         &state.pool,
         &db::BoardEdit {
             id,
-            owner_id: user.id,
+            // Always the owner: a collaborator spends the owner's storage,
+            // because it is the owner's board.
+            owner_id: existing.owner_id,
             title: payload.title.trim(),
-            is_public: payload.is_public,
+            // Publishing is a decision about the owner's account, not about the
+            // ranking, so a collaborator cannot make or unmake it — their save
+            // leaves it exactly as they found it.
+            is_public: match access {
+                db::Access::Owner => payload.is_public,
+                db::Access::Collaborator => existing.is_public,
+            },
             item_count,
             document: &payload.document,
+            based_on: payload.based_on,
         },
         state.config.storage_quota_bytes,
     )
     .await?
-    .map_err(|_| ApiError::StorageExceeded)?
+    .map_err(|denial| match denial {
+        db::QuotaDenial::Stale(_) => ApiError::Stale,
+        _ => ApiError::StorageExceeded,
+    })?
     .ok_or(ApiError::NotFound)?;
 
-    publish_overlay(&state, user.id, &row);
+    publish_overlay(&state, existing.owner_id, &row);
     Ok(Json(summarise(&row)))
+}
+
+// --- sharing a board --------------------------------------------------------
+
+/// Boards other people have shared with this account.
+async fn list_shared(State(state): State<AppState>, Auth(user): Auth) -> ApiResult<Json<Value>> {
+    let boards = db::shared_with(&state.pool, user.id).await?;
+    Ok(Json(json!({
+        "boards": boards.iter().map(summarise).collect::<Vec<_>>(),
+    })))
+}
+
+/// The people a board is shared with. Owner only — a collaborator has no
+/// business knowing who else was invited.
+async fn list_collaborators(
+    State(state): State<AppState>,
+    Auth(user): Auth,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Value>> {
+    if db::access_to(&state.pool, id, user.id).await? != Some(db::Access::Owner) {
+        return Err(ApiError::NotFound);
+    }
+
+    Ok(Json(json!({
+        "collaborators": db::collaborators(&state.pool, id).await?,
+    })))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Share {
+    login: String,
+}
+
+async fn add_collaborator(
+    State(state): State<AppState>,
+    Auth(user): Auth,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<Share>,
+) -> ApiResult<Json<Value>> {
+    if db::access_to(&state.pool, id, user.id).await? != Some(db::Access::Owner) {
+        return Err(ApiError::NotFound);
+    }
+
+    if !is_login_shaped(&payload.login) {
+        return Err(ApiError::BadRequest("that is not a Twitch login"));
+    }
+
+    match db::add_collaborator(&state.pool, id, user.id, &payload.login).await? {
+        Ok(collaborator) => Ok(Json(json!({ "collaborator": collaborator }))),
+        // Nobody here has that login. Said plainly rather than as "not found",
+        // which the owner would read as being about the board.
+        Err(db::ShareFailure::NoSuchUser) => Err(ApiError::BadRequest(
+            "nobody with that login has an account on this server",
+        )),
+        Err(db::ShareFailure::IsOwner) => {
+            Err(ApiError::BadRequest("that is already your own board"))
+        }
+    }
+}
+
+async fn remove_collaborator(
+    State(state): State<AppState>,
+    Auth(user): Auth,
+    Path((id, collaborator)): Path<(Uuid, Uuid)>,
+) -> ApiResult<StatusCode> {
+    // The owner can remove anybody; a collaborator can remove themselves, which
+    // is how somebody leaves a board they no longer want to be responsible for.
+    let access = db::access_to(&state.pool, id, user.id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    if access != db::Access::Owner && collaborator != user.id {
+        return Err(ApiError::NotFound);
+    }
+
+    if db::remove_collaborator(&state.pool, id, collaborator).await? {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
 }
 
 async fn remove_board(
@@ -607,6 +725,9 @@ async fn restore_version(
                 .is_public,
             item_count,
             document: &document,
+            // A restore is deliberate and replaces whatever is there; the
+            // person chose a version knowing what they were looking at.
+            based_on: None,
         },
         state.config.storage_quota_bytes,
     )

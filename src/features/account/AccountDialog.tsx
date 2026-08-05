@@ -41,6 +41,7 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
   const account = useAccountStore((state) => state.account)
   const boards = useAccountStore((state) => state.boards)
   const linkedId = useAccountStore((state) => state.linkedId)
+  const linkedVersion = useAccountStore((state) => state.linkedVersion)
   const overlay = useAccountStore((state) => state.overlay)
   const busy = useAccountStore((state) => state.busy)
   const refresh = useAccountStore((state) => state.refresh)
@@ -198,9 +199,9 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
               onClick={() => {
                 void run(async () => {
                   const saved = linked
-                    ? await api.updateBoard(linked.id, board, publish)
+                    ? await api.updateBoard(linked.id, board, publish, linkedVersion ?? undefined)
                     : await api.createBoard(board, publish)
-                  setLinked(saved.id)
+                  setLinked(saved.id, saved.updated_at)
                   await refreshBoards()
                   notify(t(linked ? 'account.updated' : 'account.saved'), 'good')
                 })
@@ -230,8 +231,11 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
                     disabled={busy}
                     onClick={() => {
                       void run(async () => {
-                        replaceBoard(await api.openBoard(entry.id))
-                        setLinked(entry.id)
+                        const opened = await api.openBoard(entry.id)
+                        replaceBoard(opened.board)
+                        // Remember the version this edit starts from, so the
+                        // next save can be refused rather than clobber somebody.
+                        setLinked(entry.id, opened.updatedAt)
                         setPublish(entry.is_public)
                         onClose()
                       })

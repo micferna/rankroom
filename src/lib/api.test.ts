@@ -165,9 +165,41 @@ describe('with a server', () => {
 
   it('accepts a board the server sent when it is well formed', async () => {
     const api = await load('/api')
-    fetchMock.mockResolvedValue(jsonResponse({ document: board() }))
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        document: board(),
+        board: { updated_at: '2026-08-05T00:00:00Z' },
+        access: 'owner',
+      }),
+    )
 
-    await expect(api.openBoard('id')).resolves.toMatchObject({ title: 'Board' })
+    // The version comes back with the board, because the next save has to say
+    // what it was based on or it can silently overwrite somebody else's work.
+    await expect(api.openBoard('id')).resolves.toMatchObject({
+      board: { title: 'Board' },
+      updatedAt: '2026-08-05T00:00:00Z',
+      access: 'owner',
+    })
+  })
+
+  it('sends the version an edit was based on, and only when it has one', async () => {
+    const api = await load('/api')
+    // A fresh Response per call: a body can only be read once, and reusing one
+    // object across two calls fails on the second for a reason that has nothing
+    // to do with what is being tested.
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ id: 'x' })))
+
+    await api.updateBoard('b', board(), false, '2026-08-05T00:00:00Z')
+    const [, withVersion] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(withVersion.body as string)).toMatchObject({
+      based_on: '2026-08-05T00:00:00Z',
+    })
+
+    // Omitted rather than null: the server reads absence as "not claiming to
+    // know", and null would be a claim about a version that does not exist.
+    await api.updateBoard('b', board(), false)
+    const [, without] = fetchMock.mock.calls[1] as [string, RequestInit]
+    expect(JSON.parse(without.body as string)).not.toHaveProperty('based_on')
   })
 
   it('joins the configured base to a path without repeating the prefix', async () => {

@@ -43,6 +43,7 @@ export const DOCUMENTED_TABLES = [
   'sessions',
   'boards',
   'board_versions',
+  'board_collaborators',
   'overlay_keys',
   'oauth_states',
 ]
@@ -88,6 +89,10 @@ const EN: Policy = {
         [
           'Your boards',
           'Title, the board itself including any images you added, and whether it is public.',
+        ],
+        [
+          'Who you share a board with',
+          'If you invite somebody to edit one of your boards, that grant is stored: their account, yours, and when it was made. They can edit that board and nothing else — not publish it, not delete it, and not see anything else of yours. Removing them ends it immediately.',
         ],
         [
           'Previous versions of your boards',
@@ -194,6 +199,10 @@ const FR: Policy = {
         [
           'Tes tableaux',
           'Titre, le tableau lui-même y compris les images que tu y as mises, et s’il est public.',
+        ],
+        [
+          'Avec qui tu partages un tableau',
+          'Si tu invites quelqu’un à modifier un de tes tableaux, ce droit est enregistré : son compte, le tien, et la date. Cette personne peut modifier ce tableau et rien d’autre — ni le publier, ni le supprimer, ni voir quoi que ce soit d’autre chez toi. Le retirer met fin à l’accès immédiatement.',
         ],
         [
           'Les versions précédentes de tes tableaux',

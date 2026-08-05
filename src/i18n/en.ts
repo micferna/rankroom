@@ -529,6 +529,20 @@ export const en = {
   'account.errorRequest': 'The server refused that.',
   'account.errorNoSignIn': 'Sign-in is not configured on this server.',
 
+  'account.errorStale':
+    'Somebody else saved this board while you were editing. Open it again to see their version — nothing of yours was overwritten, and nothing of theirs was either.',
+  'collab.title': 'People who can edit this',
+  'collab.hint':
+    'They can edit this board and nothing else: not publish it, not delete it, and nothing else of yours. Their saves count against your storage.',
+  'collab.add': 'Invite',
+  'collab.login': 'Twitch login',
+  'collab.added': 'Invited.',
+  'collab.removed': 'Removed.',
+  'collab.remove': 'Remove',
+  'collab.empty': 'Nobody yet.',
+  'collab.open': 'Share',
+  'collab.sharedWithMe': 'Shared with you',
+  'collab.leave': 'Leave',
   'history.open': 'History',
   'history.title': 'Previous versions',
   'history.empty': 'No previous versions yet. One is kept each time you save over this board.',

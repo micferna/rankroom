@@ -43,6 +43,9 @@ pub enum ApiError {
     #[error("this account is suspended")]
     Suspended,
 
+    #[error("somebody else saved this board first")]
+    Stale,
+
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 
@@ -68,6 +71,7 @@ impl ApiError {
             Self::NotInvited => (StatusCode::FORBIDDEN, "not_invited"),
             Self::InstanceFull => (StatusCode::SERVICE_UNAVAILABLE, "instance_full"),
             Self::Suspended => (StatusCode::FORBIDDEN, "suspended"),
+            Self::Stale => (StatusCode::CONFLICT, "stale"),
             Self::Database(_) | Self::Other(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }

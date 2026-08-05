@@ -138,12 +138,15 @@ pub async fn public_board_by_slug(pool: &PgPool, slug: &str) -> sqlx::Result<Opt
 }
 
 /// What stopped a board from being created.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum QuotaDenial {
     /// Too many boards.
     Count,
     /// Too many bytes across all of them.
     Storage,
+    /// Somebody else saved first. Not a quota at all, but the same refusal
+    /// path — the caller either way learns the write did not happen.
+    Stale(Stale),
 }
 
 /// Inserts a board with no quota check at all.
@@ -240,11 +243,23 @@ pub async fn insert_board_within_quota(
 /// A board on its way back into the database, already validated.
 pub struct BoardEdit<'a> {
     pub id: Uuid,
+    /// The account whose storage this counts against — always the board's
+    /// owner, never the person doing the writing. A collaborator spends the
+    /// owner's quota, which is inherent to being given write access to
+    /// somebody's board and is said plainly in the interface.
     pub owner_id: Uuid,
     pub title: &'a str,
     pub is_public: bool,
     pub item_count: i32,
     pub document: &'a serde_json::Value,
+    /// Refuse if the board has moved since this instant. See [`Stale`].
+    pub based_on: Option<OffsetDateTime>,
+}
+
+/// A write that was built on a version the board has since moved past.
+#[derive(Debug, Clone, Copy)]
+pub struct Stale {
+    pub current: OffsetDateTime,
 }
 
 /// How many previous states one board keeps, at most.
@@ -459,6 +474,7 @@ pub async fn update_board_within_quota(
         is_public,
         item_count,
         document,
+        based_on,
     } = *edit;
 
     let mut transaction = pool.begin().await?;
@@ -469,6 +485,25 @@ pub async fn update_board_within_quota(
         .bind(owner_id)
         .fetch_optional(&mut *transaction)
         .await?;
+
+    // Refuse a write built on a version that has moved, before anything else
+    // happens — no version recorded, no history trimmed, nothing changed. The
+    // row is locked for the rest of the transaction, so the check and the write
+    // cannot be separated by somebody else's save.
+    if let Some(based_on) = based_on {
+        let current: Option<OffsetDateTime> =
+            sqlx::query_scalar("select updated_at from boards where id = $1 for update")
+                .bind(id)
+                .fetch_optional(&mut *transaction)
+                .await?;
+
+        if let Some(current) = current {
+            if current != based_on {
+                transaction.rollback().await?;
+                return Ok(Err(QuotaDenial::Stale(Stale { current })));
+            }
+        }
+    }
 
     // Keep what is about to be overwritten, before overwriting it. History is
     // what the board *was*; the row is what it is.
@@ -646,5 +681,156 @@ pub async fn instance_usage(pool: &PgPool) -> sqlx::Result<InstanceUsage> {
         ",
     )
     .fetch_one(pool)
+    .await
+}
+
+// --- collaboration ----------------------------------------------------------
+
+/// What somebody is allowed to do with a board.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Access {
+    /// The board is theirs. Everything.
+    Owner,
+    /// They may read it and write it, and nothing else.
+    Collaborator,
+}
+
+/// How this person may touch this board, if at all.
+///
+/// One query rather than "is it yours, and if not is it shared with you": two
+/// round trips would leave a window where the answer changes between them, and
+/// the callers all need the distinction anyway.
+pub async fn access_to(
+    pool: &PgPool,
+    board_id: Uuid,
+    user_id: Uuid,
+) -> sqlx::Result<Option<Access>> {
+    let owner: Option<bool> = sqlx::query_scalar(
+        r"
+        select b.owner_id = $2 as owned
+        from boards b
+        where b.id = $1
+          and (b.owner_id = $2
+               or exists (select 1 from board_collaborators c
+                          where c.board_id = b.id and c.user_id = $2))
+        ",
+    )
+    .bind(board_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(owner.map(|owned| {
+        if owned {
+            Access::Owner
+        } else {
+            Access::Collaborator
+        }
+    }))
+}
+
+/// Somebody a board is shared with.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct Collaborator {
+    pub user_id: Uuid,
+    pub login: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    #[serde(with = "time::serde::rfc3339")]
+    pub added_at: OffsetDateTime,
+}
+
+pub async fn collaborators(pool: &PgPool, board_id: Uuid) -> sqlx::Result<Vec<Collaborator>> {
+    sqlx::query_as::<_, Collaborator>(
+        r"
+        select u.id as user_id, u.login, u.display_name, u.avatar_url, c.added_at
+        from board_collaborators c
+        join users u on u.id = c.user_id
+        where c.board_id = $1
+        order by c.added_at
+        ",
+    )
+    .bind(board_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Why somebody could not be added.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShareFailure {
+    /// No account here has that login.
+    NoSuchUser,
+    /// They already own it, so there is nothing to grant.
+    IsOwner,
+}
+
+/// Shares a board with somebody by their login.
+///
+/// By login rather than by id, because that is what an owner knows — and it
+/// resolves against accounts that exist on this instance, so sharing with
+/// somebody who has never signed in fails with a reason rather than creating a
+/// dangling grant that springs to life if they ever do.
+pub async fn add_collaborator(
+    pool: &PgPool,
+    board_id: Uuid,
+    owner_id: Uuid,
+    login: &str,
+) -> sqlx::Result<Result<Collaborator, ShareFailure>> {
+    let Some(user) = user_by_login(pool, login).await? else {
+        return Ok(Err(ShareFailure::NoSuchUser));
+    };
+
+    if user.id == owner_id {
+        return Ok(Err(ShareFailure::IsOwner));
+    }
+
+    sqlx::query(
+        r"
+        insert into board_collaborators (board_id, user_id, added_by)
+        values ($1, $2, $3)
+        on conflict (board_id, user_id) do nothing
+        ",
+    )
+    .bind(board_id)
+    .bind(user.id)
+    .bind(owner_id)
+    .execute(pool)
+    .await?;
+
+    let added = collaborators(pool, board_id)
+        .await?
+        .into_iter()
+        .find(|entry| entry.user_id == user.id);
+
+    Ok(added.ok_or(ShareFailure::NoSuchUser))
+}
+
+pub async fn remove_collaborator(
+    pool: &PgPool,
+    board_id: Uuid,
+    user_id: Uuid,
+) -> sqlx::Result<bool> {
+    sqlx::query("delete from board_collaborators where board_id = $1 and user_id = $2")
+        .bind(board_id)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .map(|done| done.rows_affected() > 0)
+}
+
+/// Boards other people have shared with this account.
+pub async fn shared_with(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<BoardRow>> {
+    sqlx::query_as::<_, BoardRow>(
+        r"
+        select b.id, b.owner_id, b.title, b.slug, b.is_public, b.item_count,
+               b.document, b.updated_at
+        from boards b
+        join board_collaborators c on c.board_id = b.id
+        where c.user_id = $1
+        order by b.updated_at desc
+        ",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
     .await
 }

@@ -116,6 +116,7 @@ db_test!(a_user_cannot_update_another_users_board, pool, {
             is_public: true,
             item_count: 0,
             document: &document(),
+            based_on: None,
         },
         i64::MAX,
     )
