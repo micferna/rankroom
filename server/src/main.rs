@@ -52,7 +52,21 @@ async fn main() -> Result<()> {
         overlay: OverlayHub::new(),
     };
 
-    housekeeping(pool.clone(), state.overlay.clone());
+    // What the instance would hold if every account filled its quota. That is
+    // the figure the disk has to survive, not what is stored today.
+    let committed = config
+        .admission
+        .max_accounts
+        .map(|max| max.saturating_mul(config.storage_quota_bytes));
+
+    if committed.is_none() && config.admission.mode != rankroom_server::admission::Mode::Closed {
+        tracing::warn!(
+            "registration is not closed and MAX_ACCOUNTS is unset: nothing bounds \
+             what this instance can be asked to store"
+        );
+    }
+
+    housekeeping(pool.clone(), state.overlay.clone(), committed);
 
     let app = app(state).context("could not build the HTTP stack")?;
 
@@ -96,8 +110,17 @@ async fn health_check() -> Result<()> {
     }
 }
 
-/// Periodically clears expired sessions and abandoned overlay channels.
-fn housekeeping(pool: sqlx::PgPool, overlay: OverlayHub) {
+/// Above this share of what the instance has committed to store, say so.
+const STORAGE_WARNING: f64 = 0.8;
+
+/// Periodically clears expired rows, and says something before the disk is the
+/// thing that says it.
+///
+/// This belongs in an alerting system rather than in a log line, and it is here
+/// because the platform's own alerting could not be configured — `alerts create`
+/// rejects every request the CLI builds. A warning in the log is weaker than a
+/// notification, but it is what exists, and the alternative was nothing.
+fn housekeeping(pool: sqlx::PgPool, overlay: OverlayHub, committed: Option<i64>) {
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(HOUSEKEEPING_INTERVAL);
         loop {
@@ -108,6 +131,27 @@ fn housekeeping(pool: sqlx::PgPool, overlay: OverlayHub) {
                 Ok(0) => {}
                 Ok(removed) => tracing::info!(removed, "purged expired rows"),
                 Err(error) => tracing::warn!(?error, "housekeeping failed"),
+            }
+
+            let Some(committed) = committed.filter(|bytes| *bytes > 0) else {
+                continue;
+            };
+
+            match rankroom_server::db::instance_usage(&pool).await {
+                Ok(usage) => {
+                    #[allow(clippy::cast_precision_loss)]
+                    let share = usage.bytes as f64 / committed as f64;
+                    if share >= STORAGE_WARNING {
+                        tracing::warn!(
+                            stored_mb = usage.bytes / (1024 * 1024),
+                            committed_mb = committed / (1024 * 1024),
+                            accounts = usage.accounts,
+                            "storage is {:.0}% of what this instance has committed to hold",
+                            share * 100.0
+                        );
+                    }
+                }
+                Err(error) => tracing::warn!(?error, "could not measure storage"),
             }
         }
     });
