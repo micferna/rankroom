@@ -184,10 +184,11 @@ describe('with a server', () => {
 
   it('sends the version an edit was based on, and only when it has one', async () => {
     const api = await load('/api')
-    // A fresh Response per call: a body can only be read once, and reusing one
-    // object across two calls fails on the second for a reason that has nothing
-    // to do with what is being tested.
-    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ id: 'x' })))
+    // One fresh Response per call: a body can only be read once, so reusing a
+    // single object fails on the second call for a reason that has nothing to
+    // do with what is being tested.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'x' }))
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'x' }))
 
     await api.updateBoard('b', board(), false, '2026-08-05T00:00:00Z')
     const [, withVersion] = fetchMock.mock.calls[0] as [string, RequestInit]
