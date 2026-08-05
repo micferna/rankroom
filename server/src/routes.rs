@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     admission,
-    auth::{self, Auth},
+    auth::{self, Admin, Auth},
     board::{self, BoardSummary, SaveBoard},
     db::{self, BoardRow},
     error::{ApiError, ApiResult},
@@ -33,6 +33,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/boards", get(list_boards).post(save_board))
         .route("/api/boards/{id}", get(get_board).put(update_board))
         .route("/api/boards/{id}", delete(remove_board))
+        .route("/api/admin/overview", get(admin_overview))
+        .route(
+            "/api/admin/users/{id}/suspension",
+            post(admin_set_suspension),
+        )
         .route("/api/overlay/key", post(rotate_overlay_key))
         .route("/api/overlay/live", get(overlay_stream))
         .route("/api/u/{login}", get(public_profile))
@@ -469,6 +474,88 @@ async fn remove_board(
     Path(id): Path<Uuid>,
 ) -> ApiResult<StatusCode> {
     if db::delete_board(&state.pool, id, user.id).await? {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
+// --- administration ---------------------------------------------------------
+
+/// What the instance is holding, and what it is allowed to hold.
+///
+/// The limits travel with the usage on purpose: "3.1 GB stored" means nothing
+/// on its own, and an operator reading this needs to know how close that is to
+/// the wall before it is a problem rather than after.
+async fn admin_overview(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<Json<Value>> {
+    let usage = db::instance_usage(&state.pool).await?;
+    let accounts = db::accounts(&state.pool).await?;
+    let policy = &state.config.admission;
+
+    Ok(Json(json!({
+        "usage": usage,
+        "accounts": accounts,
+        "limits": {
+            "max_accounts": policy.max_accounts,
+            "storage_quota_bytes": state.config.storage_quota_bytes,
+            "boards_per_account": board::limits::BOARDS_PER_USER,
+            // What the instance could be asked to store if every account filled
+            // its quota. The number worth comparing against the disk.
+            "committed_bytes": policy
+                .max_accounts
+                .map(|max| max.saturating_mul(state.config.storage_quota_bytes)),
+        },
+        "registration": {
+            "mode": match policy.mode {
+                admission::Mode::Open => "open",
+                admission::Mode::Invite => "invite",
+                admission::Mode::Closed => "closed",
+            },
+            "allowed": policy.allowed.iter().collect::<Vec<_>>(),
+            "admins": policy.admins.iter().collect::<Vec<_>>(),
+        },
+    })))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Suspension {
+    suspended: bool,
+}
+
+/// Suspends or restores an account.
+///
+/// Refuses to suspend an administrator, including yourself. Locking the last
+/// administrator out of their own instance is a mistake nobody makes twice and
+/// everybody makes once, and there is no self-service way back.
+async fn admin_set_suspension(
+    State(state): State<AppState>,
+    Admin(admin): Admin,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<Suspension>,
+) -> ApiResult<StatusCode> {
+    if payload.suspended {
+        if id == admin.id {
+            return Err(ApiError::BadRequest(
+                "an administrator cannot suspend themselves",
+            ));
+        }
+
+        let target_is_admin: Option<bool> =
+            sqlx::query_scalar("select is_admin from users where id = $1")
+                .bind(id)
+                .fetch_optional(&state.pool)
+                .await?;
+
+        if target_is_admin == Some(true) {
+            return Err(ApiError::BadRequest(
+                "remove them from ADMIN_LOGINS before suspending them",
+            ));
+        }
+    }
+
+    if db::set_suspended(&state.pool, id, payload.suspended).await? {
+        tracing::info!(admin = %admin.login, target = %id, payload.suspended, "suspension changed");
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(ApiError::NotFound)

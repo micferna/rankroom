@@ -234,6 +234,45 @@ impl FromRequestParts<AppState> for Auth {
     }
 }
 
+/// A request that carries a valid session **belonging to an administrator**.
+///
+/// A separate type rather than a flag checked inside handlers: an admin route
+/// that forgets the check does not compile, which is the only version of this
+/// guarantee worth having. Admin status is read from the row on every request,
+/// so removing somebody from `ADMIN_LOGINS` takes effect at their next call
+/// rather than whenever their session happens to expire.
+pub struct Admin(pub User);
+
+impl FromRequestParts<AppState> for Admin {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let name = session_cookie_name(!state.config.insecure_cookies);
+        let token = cookie_value(parts, name).ok_or(ApiError::NotFound)?;
+
+        let user = sqlx::query_as::<_, User>(
+            r"
+            select u.id, u.twitch_id, u.login, u.display_name, u.avatar_url
+            from sessions s
+            join users u on u.id = s.user_id
+            where s.token_hash = $1 and s.expires_at > now() and u.is_admin
+            ",
+        )
+        .bind(hash(token))
+        .fetch_optional(&state.pool)
+        .await?;
+
+        // Not found rather than forbidden, and the same answer whether the
+        // caller is signed out, signed in as somebody ordinary, or holding an
+        // expired session. A 403 here would confirm to anyone who asked that
+        // these routes exist and that they are not on the list.
+        user.map(Admin).ok_or(ApiError::NotFound)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

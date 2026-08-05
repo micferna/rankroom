@@ -280,3 +280,103 @@ pub async fn delete_board(pool: &PgPool, id: Uuid, owner_id: Uuid) -> sqlx::Resu
 }
 
 pub const BOARD_QUOTA: i64 = limits::BOARDS_PER_USER;
+
+// --- administration ---------------------------------------------------------
+
+/// One account, as an administrator needs to see it.
+///
+/// Deliberately no board titles and no board contents. Running an instance
+/// requires knowing that an account exists and what it costs; it does not
+/// require reading what people ranked, and an admin view that shows it invites
+/// exactly that.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct AccountSummary {
+    pub id: Uuid,
+    pub login: String,
+    pub display_name: String,
+    pub is_admin: bool,
+    pub boards: i64,
+    pub public_boards: i64,
+    pub bytes: i64,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub last_seen_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub suspended_at: Option<OffsetDateTime>,
+}
+
+/// Every account, with what it is costing.
+pub async fn accounts(pool: &PgPool) -> sqlx::Result<Vec<AccountSummary>> {
+    sqlx::query_as::<_, AccountSummary>(
+        r"
+        select
+            u.id,
+            u.login,
+            u.display_name,
+            u.is_admin,
+            count(b.id) as boards,
+            count(b.id) filter (where b.is_public) as public_boards,
+            coalesce(sum(pg_column_size(b.document)), 0)::bigint as bytes,
+            u.created_at,
+            u.last_seen_at,
+            u.suspended_at
+        from users u
+        left join boards b on b.owner_id = u.id
+        group by u.id
+        order by u.created_at
+        ",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Suspends or restores an account.
+///
+/// Suspending revokes every session it holds in the same transaction. Without
+/// that the person stays signed in until their cookie expires — up to a month —
+/// which makes the lever useless in the situation it exists for.
+pub async fn set_suspended(pool: &PgPool, user_id: Uuid, suspended: bool) -> sqlx::Result<bool> {
+    let mut transaction = pool.begin().await?;
+
+    let changed = sqlx::query(
+        "update users set suspended_at = case when $2 then now() else null end where id = $1",
+    )
+    .bind(user_id)
+    .bind(suspended)
+    .execute(&mut *transaction)
+    .await?
+    .rows_affected()
+        > 0;
+
+    if suspended {
+        sqlx::query("delete from sessions where user_id = $1")
+            .bind(user_id)
+            .execute(&mut *transaction)
+            .await?;
+    }
+
+    transaction.commit().await?;
+    Ok(changed)
+}
+
+/// What the instance as a whole is holding.
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct InstanceUsage {
+    pub accounts: i64,
+    pub boards: i64,
+    pub bytes: i64,
+}
+
+pub async fn instance_usage(pool: &PgPool) -> sqlx::Result<InstanceUsage> {
+    sqlx::query_as::<_, InstanceUsage>(
+        r"
+        select
+            (select count(*) from users) as accounts,
+            (select count(*) from boards) as boards,
+            (select coalesce(sum(pg_column_size(document)), 0)::bigint from boards) as bytes
+        ",
+    )
+    .fetch_one(pool)
+    .await
+}

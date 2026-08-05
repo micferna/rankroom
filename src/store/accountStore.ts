@@ -23,11 +23,14 @@ interface AccountStore {
   /** The cloud board the board being edited came from, when it came from one. */
   linkedId: string | null
   overlay: api.OverlayKey | null
+  /** The instance overview, when this account administers it. */
+  admin: api.AdminOverview | null
   busy: boolean
 
   /** Asks the server who you are. Safe to call repeatedly. */
   refresh: () => Promise<void>
   refreshBoards: () => Promise<void>
+  refreshAdmin: () => Promise<void>
   setLinked: (id: string | null) => void
   setOverlay: (overlay: api.OverlayKey | null) => void
   setBusy: (busy: boolean) => void
@@ -41,6 +44,7 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
   boards: [],
   linkedId: null,
   overlay: null,
+  admin: null,
   busy: false,
 
   refresh: async () => {
@@ -56,7 +60,14 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       set(
         account
           ? { status: 'signedIn', account }
-          : { status: 'anonymous', account: null, boards: [], linkedId: null, overlay: null },
+          : {
+              status: 'anonymous',
+              account: null,
+              boards: [],
+              linkedId: null,
+              overlay: null,
+              admin: null,
+            },
       )
     } catch {
       // A server that is configured but unreachable is not the same as no
@@ -72,6 +83,17 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       set({ boards: await api.listBoards() })
     } catch {
       set({ boards: [] })
+    }
+  },
+
+  refreshAdmin: async () => {
+    if (get().status !== 'signedIn') return
+    try {
+      // Null for everybody who is not an administrator, which is almost
+      // everybody, and not a condition worth reporting.
+      set({ admin: await api.adminOverview() })
+    } catch {
+      set({ admin: null })
     }
   },
 
@@ -91,6 +113,7 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       boards: [],
       linkedId: null,
       overlay: null,
+      admin: null,
     })
   },
 }))

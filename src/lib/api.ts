@@ -249,6 +249,57 @@ export async function publicBoard(slug: string): Promise<{ title: string; board:
   return { title: body.board.title, board: parseBoard(body.document) }
 }
 
+// --- administration ---------------------------------------------------------
+
+export interface AccountSummary {
+  id: string
+  login: string
+  display_name: string
+  is_admin: boolean
+  boards: number
+  public_boards: number
+  bytes: number
+  created_at: string
+  last_seen_at: string
+  suspended_at: string | null
+}
+
+export interface AdminOverview {
+  usage: { accounts: number; boards: number; bytes: number }
+  accounts: AccountSummary[]
+  limits: {
+    max_accounts: number | null
+    storage_quota_bytes: number
+    boards_per_account: number
+    /** Everything the instance could be asked to store if every account filled up. */
+    committed_bytes: number | null
+  }
+  registration: { mode: 'open' | 'invite' | 'closed'; allowed: string[]; admins: string[] }
+}
+
+/**
+ * The instance overview, or null when this account is not an administrator.
+ *
+ * The server answers a non-administrator exactly as it answers a request for a
+ * route that does not exist, so "not found" is the ordinary case here and not
+ * an error worth showing anybody.
+ */
+export async function adminOverview(): Promise<AdminOverview | null> {
+  try {
+    return await request<AdminOverview>('/admin/overview')
+  } catch (error) {
+    if (error instanceof RankRoomError && error.key === 'account.errorMissing') return null
+    throw error
+  }
+}
+
+export async function setSuspension(id: string, suspended: boolean): Promise<void> {
+  await requestNothing(`/admin/users/${id}/suspension`, {
+    method: 'POST',
+    body: JSON.stringify({ suspended }),
+  })
+}
+
 // --- overlay ----------------------------------------------------------------
 
 /** Issues a fresh overlay key, which invalidates the previous one at once. */

@@ -529,6 +529,26 @@ export const en = {
   'account.errorRequest': 'The server refused that.',
   'account.errorNoSignIn': 'Sign-in is not configured on this server.',
 
+  'admin.title': 'This instance',
+  'admin.accounts': 'Accounts',
+  'admin.stored': 'Stored',
+  'admin.noLimit': '{count}, no cap set',
+  'admin.uncapped':
+    'No account cap is set, so nothing bounds what this instance can be asked to store. Set MAX_ACCOUNTS before opening registration.',
+  'admin.commitment':
+    'If all {accounts} accounts filled their {each} quota, this instance would hold {total}. That is the number to compare against the disk — not what is stored today.',
+  'admin.registration.open': 'Registration open',
+  'admin.registration.invite': 'Invite only',
+  'admin.registration.closed': 'Registration closed',
+  'admin.isAdmin': 'Admin',
+  'admin.suspend': 'Suspend',
+  'admin.restore': 'Restore',
+  'admin.suspended': 'Account suspended and signed out.',
+  'admin.restored': 'Account restored.',
+  'admin.boardCount': '{count} boards',
+  'admin.boardCount_one': '{count} board',
+  'admin.suspendHint':
+    'Suspending signs someone out immediately and keeps their boards. Administrators cannot be suspended from here — take them out of ADMIN_LOGINS first.',
   'profile.title': '{name}',
   'profile.boards_one': '{count} public board',
   'profile.boards': '{count} public boards',

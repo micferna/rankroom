@@ -533,6 +533,26 @@ export const fr: Record<keyof typeof en, string> = {
   'account.errorRequest': 'Le serveur a refusé.',
   'account.errorNoSignIn': 'La connexion n’est pas configurée sur ce serveur.',
 
+  'admin.title': 'Cette instance',
+  'admin.accounts': 'Comptes',
+  'admin.stored': 'Stocké',
+  'admin.noLimit': '{count}, aucun plafond',
+  'admin.uncapped':
+    'Aucun plafond de comptes n’est défini : rien ne borne ce que cette instance peut être amenée à stocker. Définis MAX_ACCOUNTS avant d’ouvrir les inscriptions.',
+  'admin.commitment':
+    'Si les {accounts} comptes remplissaient leur quota de {each}, cette instance détiendrait {total}. C’est ce chiffre-là qu’il faut comparer au disque, pas ce qui est stocké aujourd’hui.',
+  'admin.registration.open': 'Inscriptions ouvertes',
+  'admin.registration.invite': 'Sur invitation',
+  'admin.registration.closed': 'Inscriptions fermées',
+  'admin.isAdmin': 'Admin',
+  'admin.suspend': 'Suspendre',
+  'admin.restore': 'Rétablir',
+  'admin.suspended': 'Compte suspendu et déconnecté.',
+  'admin.restored': 'Compte rétabli.',
+  'admin.boardCount': '{count} tableaux',
+  'admin.boardCount_one': '{count} tableau',
+  'admin.suspendHint':
+    'Suspendre déconnecte immédiatement et conserve les tableaux. Les administrateurs ne peuvent pas être suspendus d’ici : retire-les d’abord de ADMIN_LOGINS.',
   'profile.title': '{name}',
   'profile.boards_one': '{count} tableau public',
   'profile.boards': '{count} tableaux publics',

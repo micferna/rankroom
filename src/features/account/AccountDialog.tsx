@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { profileUrl } from '~/app/route'
+import { AdminPanel } from './AdminPanel'
 import { Button, IconButton } from '~/components/ui/Button'
 import { Switch } from '~/components/ui/Field'
 import { Modal } from '~/components/ui/Modal'
@@ -318,6 +319,10 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
             ) : null}
           </div>
         </section>
+
+        {/* Renders nothing unless the server recognises this account as an
+            administrator, so it is simply absent for everybody else. */}
+        <AdminPanel />
 
         <section className="flex flex-col gap-2 border-t border-chalk/10 pt-4">
           <h3 className="type-display text-sm text-program">{t('account.danger')}</h3>
