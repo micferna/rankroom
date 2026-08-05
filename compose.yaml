@@ -42,6 +42,12 @@ services:
       RATE_LIMIT_PER_SECOND: ${RATE_LIMIT_PER_SECOND:-10}
       RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-40}
       STORAGE_QUOTA_MB: ${STORAGE_QUOTA_MB:-512}
+      # Who may have an account here. Unset means closed, which is the safe
+      # default and what an instance that never configures this will do.
+      REGISTRATION: ${REGISTRATION:-closed}
+      ALLOWED_LOGINS: ${ALLOWED_LOGINS:-}
+      ADMIN_LOGINS: ${ADMIN_LOGINS:-}
+      MAX_ACCOUNTS: ${MAX_ACCOUNTS:-}
       # Read at runtime and served to the app, so correcting it is a restart
       # rather than a rebuild.
       PRIVACY_CONTACT: ${PRIVACY_CONTACT:-}
