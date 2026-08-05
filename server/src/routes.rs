@@ -452,16 +452,20 @@ async fn update_board(
 ) -> ApiResult<Json<BoardSummary>> {
     let item_count = check(&payload)?;
 
-    let row = db::update_board(
+    let row = db::update_board_within_quota(
         &state.pool,
-        id,
-        user.id,
-        payload.title.trim(),
-        payload.is_public,
-        item_count,
-        &payload.document,
+        &db::BoardEdit {
+            id,
+            owner_id: user.id,
+            title: payload.title.trim(),
+            is_public: payload.is_public,
+            item_count,
+            document: &payload.document,
+        },
+        state.config.storage_quota_bytes,
     )
     .await?
+    .map_err(|_| ApiError::StorageExceeded)?
     .ok_or(ApiError::NotFound)?;
 
     publish_overlay(&state, user.id, &row);

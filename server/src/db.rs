@@ -218,17 +218,15 @@ pub async fn insert_board_within_quota(
         return Ok(Err(QuotaDenial::Count));
     }
 
-    // A board count alone bounds nothing: two hundred boards of ninety megabytes
-    // is still nineteen gigabytes of somebody else's disk.
-    let used: i64 = sqlx::query_scalar(
-        "select coalesce(sum(pg_column_size(document)), 0)::bigint from boards where owner_id = $1",
+    if !fits(
+        &mut transaction,
+        owner_id,
+        None,
+        document,
+        storage_quota_bytes,
     )
-    .bind(owner_id)
-    .fetch_one(&mut *transaction)
-    .await?;
-
-    let incoming = i64::try_from(document.to_string().len()).unwrap_or(i64::MAX);
-    if used.saturating_add(incoming) > storage_quota_bytes {
+    .await?
+    {
         transaction.rollback().await?;
         return Ok(Err(QuotaDenial::Storage));
     }
@@ -239,20 +237,91 @@ pub async fn insert_board_within_quota(
     Ok(Ok(row))
 }
 
-/// Updates a board **only** when it belongs to `owner_id`.
+/// A board on its way back into the database, already validated.
+pub struct BoardEdit<'a> {
+    pub id: Uuid,
+    pub owner_id: Uuid,
+    pub title: &'a str,
+    pub is_public: bool,
+    pub item_count: i32,
+    pub document: &'a serde_json::Value,
+}
+
+/// Whether this account has room for `document`.
 ///
-/// Ownership is part of the WHERE clause rather than a prior read: there is no
-/// window between checking and writing, and a wrong id simply updates nothing.
-pub async fn update_board(
-    pool: &PgPool,
-    id: Uuid,
+/// `replacing` names a board whose current bytes do not count, because they are
+/// about to be replaced — without it an update would be measured against
+/// storage that includes the very board being overwritten, and saving a board
+/// twice in a row would eventually fail for no reason a user could understand.
+///
+/// A board count alone bounds nothing: two hundred boards of thirty megabytes
+/// is still six gigabytes of somebody else's disk.
+async fn fits(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     owner_id: Uuid,
-    title: &str,
-    is_public: bool,
-    item_count: i32,
+    replacing: Option<Uuid>,
     document: &serde_json::Value,
-) -> sqlx::Result<Option<BoardRow>> {
-    sqlx::query_as::<_, BoardRow>(
+    storage_quota_bytes: i64,
+) -> sqlx::Result<bool> {
+    let used: i64 = sqlx::query_scalar(
+        r"
+        select coalesce(sum(pg_column_size(document)), 0)::bigint
+        from boards
+        where owner_id = $1 and ($2::uuid is null or id <> $2)
+        ",
+    )
+    .bind(owner_id)
+    .bind(replacing)
+    .fetch_one(&mut **transaction)
+    .await?;
+
+    let incoming = i64::try_from(document.to_string().len()).unwrap_or(i64::MAX);
+    Ok(used.saturating_add(incoming) <= storage_quota_bytes)
+}
+
+/// Updates a board **only** when it belongs to `owner_id`, and only if it fits.
+///
+/// The quota check lives here rather than only on creation because otherwise it
+/// is decorative: fill an account with boards small enough to be admitted, then
+/// grow each one afterwards and never touch the create path again. A pentest
+/// walked straight through it before this existed.
+pub async fn update_board_within_quota(
+    pool: &PgPool,
+    edit: &BoardEdit<'_>,
+    storage_quota_bytes: i64,
+) -> sqlx::Result<Result<Option<BoardRow>, QuotaDenial>> {
+    let BoardEdit {
+        id,
+        owner_id,
+        title,
+        is_public,
+        item_count,
+        document,
+    } = *edit;
+
+    let mut transaction = pool.begin().await?;
+
+    // The same gate creation takes, so a create and an update racing each other
+    // cannot both measure the account before either has written.
+    sqlx::query("select 1 from users where id = $1 for update")
+        .bind(owner_id)
+        .fetch_optional(&mut *transaction)
+        .await?;
+
+    if !fits(
+        &mut transaction,
+        owner_id,
+        Some(id),
+        document,
+        storage_quota_bytes,
+    )
+    .await?
+    {
+        transaction.rollback().await?;
+        return Ok(Err(QuotaDenial::Storage));
+    }
+
+    let row = sqlx::query_as::<_, BoardRow>(
         r"
         update boards
         set title = $3, is_public = $4, item_count = $5, document = $6, updated_at = now()
@@ -266,8 +335,11 @@ pub async fn update_board(
     .bind(is_public)
     .bind(item_count)
     .bind(document)
-    .fetch_optional(pool)
-    .await
+    .fetch_optional(&mut *transaction)
+    .await?;
+
+    transaction.commit().await?;
+    Ok(Ok(row))
 }
 
 pub async fn delete_board(pool: &PgPool, id: Uuid, owner_id: Uuid) -> sqlx::Result<bool> {

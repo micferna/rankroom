@@ -107,9 +107,22 @@ db_test!(a_user_cannot_update_another_users_board, pool, {
     let bob = user(&pool, "bob").await;
     let victim = board_for(&pool, &alice, false).await;
 
-    let attempt = db::update_board(&pool, victim.id, bob.id, "Owned", true, 0, &document())
-        .await
-        .unwrap();
+    let attempt = db::update_board_within_quota(
+        &pool,
+        &db::BoardEdit {
+            id: victim.id,
+            owner_id: bob.id,
+            title: "Owned",
+            is_public: true,
+            item_count: 0,
+            document: &document(),
+        },
+        i64::MAX,
+    )
+    .await
+    .unwrap()
+    .expect("quota is not the point of this test");
+
     assert!(attempt.is_none(), "the update must not match any row");
 
     let after = db::board_by_id(&pool, victim.id).await.unwrap().unwrap();
