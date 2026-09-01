@@ -218,7 +218,7 @@ jobs:
           workspaces: server
 
       - name: Install SBOM tooling
-        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2
+        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2
         with:
           tool: cargo-cyclonedx
 
